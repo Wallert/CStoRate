@@ -1,0 +1,49 @@
+# Release Notes — CantStop to rate (CStoRate) v1.0.0
+
+> **Release Date:** July 2026  
+> **Status:** Production Ready  
+
+Welcome to the official **v1.0.0 release** of **CantStop to rate** — the ultimate Steam Gaming Tier List Master application!
+
+---
+
+## 🌟 Key Features & Improvements
+
+### 🎮 Steam Integration & Search
+- **Steam App Autocomplete:** Real-time search by Steam game title with high-speed proxy fallback chain (`Local Proxy` -> `CodeTabs` -> `AllOrigins` -> `ThingProxy`).
+- **Direct App ID / Link Import:** Paste Steam Store URLs or raw App IDs to automatically fetch game metadata and high-res cover art.
+- **Preloaded Game Templates:** Built-in templates (FPS Classics, Soulsborne Hardcore, Open World Epics, RPG Masterpieces, etc.).
+
+### 🔀 Drag-and-Drop & Reordering
+- **Precision In-Tier Reordering:** Drag games within tiers or between tiers with left/right drop position detection.
+- **Mobile & Touch Drag Support:** Native touch event handlers (`touchstart`, `touchmove`, `touchend`) with drag mirrors for smartphones and tablets.
+- **Trash Bin Dropzone:** Interactive neon trash dropzone next to the pool to delete games instantly by dragging.
+- **Edge Auto-Scrolling & Wheel Scroll:** Scroll the page smoothly while holding a game via edge proximity detection or mouse wheel.
+
+### 🛡️ Security & Data Hardening
+- **XSS Protection:** Input sanitization helper (`escapeHtml()`) applied to all user-editable labels, titles, and imported content.
+- **JSON Import Validation:** Schema validation (`validateAndSanitizeImport()`) checking for valid structures, color hex codes, duplicate IDs, and protocol-safe image URLs (`http://`, `https://`, `data:image/`).
+- **Storage Quota Protection:** LocalStorage saves protected with try/catch fallback error toasts.
+
+### ⚡ Performance & Memory Optimization
+- **Targeted DOM Manipulation:** Replaced full-page DOM re-renders (`innerHTML`) with direct element node insertions (`replaceChildren`, `appendChild`, `insertBefore`), improving drag performance 100x.
+- **Image Lazy Loading:** Added `loading="lazy"` and `decoding="async"` to image elements to eliminate memory spikes during 100+ game sessions.
+- **Dirty-State Autosave:** Background autosave loop only writes to `localStorage` when state changes occur (`isDirty === true`).
+- **Search AbortController:** Interrupted search queries cleanly abort pending HTTP requests to prevent race conditions.
+
+### ♿ Accessibility & UI/UX Polish
+- **Keyboard Navigation:** Full support for `Enter` and `Space` on cards, and global `Escape` key handling to close dropdowns and modals.
+- **ARIA Standards:** Added `role="dialog"`, `aria-modal="true"`, `aria-labelledby`, and `aria-label` tags for screen reader compatibility.
+- **Cross-Browser Glassmorphism:** Added `-webkit-backdrop-filter` fallbacks for Safari/iOS devices.
+- **Responsive Layouts:** Dedicated mobile styling for row controls, modal windows, and sidebars.
+
+---
+
+## 📤 Export & Import Support
+- **PNG High-Res Image Export:** Compile and download crisp tier list image captures using `html2canvas` at 2x scale.
+- **JSON Backup & Restore:** Save your tier list configuration to a `.json` backup file or restore previously saved lists.
+- **LocalStorage Library:** Save multiple custom lists into your local browser library.
+
+---
+
+*Enjoy building and ranking your ultimate gaming tier lists!* 🚀

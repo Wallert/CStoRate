@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CantStop to rate - Premium Steam Gaming Tier List Maker</title>
+    
+    <!-- Vector Favicon (Cyber Gamepad HUD Icon) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f2fe' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='2' width='20' height='20' rx='4' fill='%2305060b' stroke='%2300f2fe' stroke-width='2'/%3E%3Cpath d='M6 12h4m-2-2v4m5-2h.01M17 12h.01' stroke='%23ff007f' stroke-width='3'/%3E%3C/svg%3E">
+    
+    <!-- Google Fonts: Oxanium (futuristic headers), Outfit (modern UI) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Oxanium:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons (loaded via CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- html2canvas CDN (for high-fidelity image exports) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="gaming-theme">
+    
+    <!-- Cyberpunk Immersive Holographic Grid Overlay -->
+    <div class="cyber-grid-overlay"></div>
+    
+    <!-- Decorative Glowing Elements -->
+    <div class="bg-glow bg-glow-1"></div>
+    <div class="bg-glow bg-glow-2"></div>
+
+    <div class="app-container">
+        
+        <!-- Navigation Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <i data-lucide="gamepad-2" class="logo-icon neon-text-pink"></i>
+                <div class="logo-text">
+                    <h1 class="neon-title"><span class="highlight-brand">CantStop</span> <span class="brand-to-rate">to rate</span></h1>
+                    <p class="subtitle">Steam Tier Master</p>
+                </div>
+            </div>
+            
+            <nav class="tab-navigation">
+                <button class="nav-btn active" data-tab="builder">
+                    <i data-lucide="layout-grid"></i> Builder
+                </button>
+                <button class="nav-btn" data-tab="templates">
+                    <i data-lucide="sparkles"></i> Templates
+                </button>
+                <button class="nav-btn" data-tab="library">
+                    <i data-lucide="folder-heart"></i> My Library
+                    <span class="library-badge" id="library-count">0</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- Main Body -->
+        <main class="app-main">
+            
+            <!-- BUILDER TAB -->
+            <section id="tab-builder" class="tab-content active">
+                <div class="builder-layout">
+                    
+                    <!-- Sidebar Control Panel -->
+                    <aside class="sidebar">
+                        
+                        <!-- List Settings -->
+                        <div class="panel-section">
+                            <h3 class="section-title"><i data-lucide="settings"></i> List Info</h3>
+                            <div class="input-group">
+                                <label for="list-title">Tier List Title</label>
+                                <input type="text" id="list-title" value="My Ultimate Gaming Tier List" placeholder="Enter list name...">
+                            </div>
+                        </div>
+
+                        <!-- Add Games via Steam -->
+                        <div class="panel-section">
+                            <h3 class="section-title"><i data-lucide="plus-circle"></i> Add Games</h3>
+                            
+                            <!-- Search by Name -->
+                            <div class="input-group search-container">
+                                <label for="steam-search">Search on Steam</label>
+                                <div class="search-input-wrapper">
+                                    <input type="text" id="steam-search" placeholder="Type game name (e.g. Witcher)..." autocomplete="off">
+                                    <i data-lucide="search" class="search-icon"></i>
+                                    <div class="spinner" id="search-spinner"></div>
+                                </div>
+                                <div class="autocomplete-dropdown" id="search-dropdown"></div>
+                            </div>
+
+                            <!-- Direct Link / App ID -->
+                            <div class="input-group">
+                                <label for="steam-id-input">Steam Link or App ID</label>
+                                <div class="flex-input-row">
+                                    <input type="text" id="steam-id-input" placeholder="URL or ID (e.g. 570)...">
+                                    <button class="btn btn-primary" id="btn-add-by-id" title="Fetch Game">
+                                        <i data-lucide="plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Control Actions -->
+                        <div class="panel-section actions-panel">
+                            <h3 class="section-title"><i data-lucide="cpu"></i> Actions</h3>
+                            <div class="actions-grid">
+                                <button class="btn btn-glow-blue" id="btn-save">
+                                    <i data-lucide="save"></i> Save List
+                                </button>
+                                <button class="btn btn-glow-pink" id="btn-export-png">
+                                    <i data-lucide="image"></i> Export PNG
+                                </button>
+                                <button class="btn btn-outline" id="btn-export-json">
+                                    <i data-lucide="download"></i> Backup JSON
+                                </button>
+                                <button class="btn btn-outline btn-relative" id="btn-import-trigger">
+                                    <i data-lucide="upload"></i> Load JSON
+                                    <input type="file" id="file-import" accept=".json" style="display:none;">
+                                </button>
+                            </div>
+                            <button class="btn btn-danger btn-block" id="btn-reset">
+                                <i data-lucide="trash-2"></i> Reset Board
+                            </button>
+                        </div>
+
+                    </aside>
+
+                    <!-- Main Tier List Workspace -->
+                    <div class="workspace">
+                        
+                        <!-- Board Toolbar (Dynamic configurations) -->
+                        <div class="board-toolbar glassmorphism">
+                            <div class="toolbar-section">
+                                <span class="toolbar-label"><i data-lucide="sliders-horizontal"></i> Card Format:</span>
+                                <div class="btn-group-toggle" id="layout-toggle-group">
+                                    <button class="btn btn-toggle active" data-layout="horizontal">
+                                        <i data-lucide="gallery-horizontal"></i> Horizontal
+                                    </button>
+                                    <button class="btn btn-toggle" data-layout="vertical">
+                                        <i data-lucide="gallery-vertical"></i> Vertical
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="toolbar-section">
+                                <span class="toolbar-label"><i data-lucide="maximize-2"></i> Card Size:</span>
+                                <div class="btn-group-toggle" id="size-toggle-group">
+                                    <button class="btn btn-toggle" data-size="small">Small</button>
+                                    <button class="btn btn-toggle active" data-size="medium">Medium</button>
+                                    <button class="btn btn-toggle" data-size="large">Large</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- The Printable Tier List Board -->
+                        <div class="tier-list-board" id="tier-list-board">
+                            
+                            <!-- Board Header (visible on PNG export too) -->
+                            <div class="board-header">
+                                <h2 id="board-title-display">MY ULTIMATE GAMING TIER LIST</h2>
+                                <p class="board-watermark">Created via CantStop to rate</p>
+                            </div>
+                            
+                            <!-- Tier Rows Container -->
+                            <div class="tier-rows-container" id="tier-rows-container">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Dynamic Row Actions (Floating Bar) -->
+                        <div class="board-builder-controls">
+                            <button class="btn btn-outline btn-glow-green" id="btn-add-tier">
+                                <i data-lucide="rows-4"></i> Add New Tier Row
+                            </button>
+                        </div>
+
+                        <!-- Unassigned Games Pool -->
+                        <div class="pool-container">
+                            <div class="pool-header">
+                                <h3><i data-lucide="archive"></i> Unassigned Games Pool</h3>
+                                <div class="pool-header-actions">
+                                    <span class="game-counter" id="pool-count">0 games</span>
+                                    <div class="trash-dropzone droppable-row" id="trash-dropzone" data-tier-id="trash" title="Drag games here to remove">
+                                        <i data-lucide="trash-2"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="games-pool droppable-row" id="unassigned-pool" data-tier-id="pool">
+                                <!-- Populated dynamically by JS -->
+                                <div class="pool-empty-state" id="pool-empty-state">
+                                    <i data-lucide="search-code" class="empty-icon"></i>
+                                    <p>Search & add Steam games above to start ranking!</p>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+
+            <!-- TEMPLATES TAB -->
+            <section id="tab-templates" class="tab-content">
+                <div class="templates-view">
+                    <div class="view-header">
+                        <h2><i data-lucide="sparkles"></i> Preset Starting Templates</h2>
+                        <p>Load a curated category template filled with top Steam games to rank instantly!</p>
+                    </div>
+                    
+                    <div class="templates-grid" id="templates-grid">
+                        <!-- Curated categories loaded via JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- LIBRARY TAB -->
+            <section id="tab-library" class="tab-content">
+                <div class="library-view">
+                    <div class="view-header">
+                        <h2><i data-lucide="folder-heart"></i> Your Saved Tier Lists</h2>
+                        <p>Locally stored gaming tier lists in your browser.</p>
+                    </div>
+                    
+                    <div class="library-grid" id="library-grid">
+                        <!-- Populated dynamically from LocalStorage -->
+                    </div>
+                </div>
+            </section>
+
+        </main>
+        
+        <footer class="app-footer">
+            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.0</p>
+        </footer>
+    </div>
+
+    <!-- MOBILE / CLICK QUICK-MOVE MODAL -->
+    <div class="modal-overlay" id="mobile-move-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-move-title">
+        <div class="modal-content glassmorphism">
+            <div class="modal-header">
+                <h3 id="mobile-move-title">Move <span id="mobile-game-name" class="highlight-text">Game</span> to...</h3>
+                <button class="close-btn" id="btn-close-mobile-modal" aria-label="Close modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="tier-select-grid" id="mobile-tier-select-grid">
+                    <!-- Populated dynamically by JS -->
+                </div>
+                <div class="divider"></div>
+                <button class="btn btn-outline btn-block" id="btn-mobile-return-pool">
+                    <i data-lucide="archive"></i> Move to Pool
+                </button>
+                <button class="btn btn-danger btn-block" id="btn-mobile-delete">
+                    <i data-lucide="trash-2"></i> Remove Game
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIER EDIT MODAL -->
+    <div class="modal-overlay" id="tier-edit-modal" role="dialog" aria-modal="true" aria-labelledby="tier-edit-title">
+        <div class="modal-content glassmorphism">
+            <div class="modal-header">
+                <h3 id="tier-edit-title">Edit Tier Row Settings</h3>
+                <button class="close-btn" id="btn-close-tier-edit-modal" aria-label="Close modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label for="edit-tier-label">Tier Name</label>
+                    <input type="text" id="edit-tier-label" maxlength="15" placeholder="S, A, B...">
+                </div>
+                <div class="input-group">
+                    <label>Tier Background Color</label>
+                    <div class="color-picker-grid">
+                        <button class="color-preset active" style="background-color: #ff79c6;" data-color="#ff79c6" aria-label="Preset color pink"></button>
+                        <button class="color-preset" style="background-color: #ffb86c;" data-color="#ffb86c" aria-label="Preset color orange"></button>
+                        <button class="color-preset" style="background-color: #f1fa8c;" data-color="#f1fa8c" aria-label="Preset color yellow"></button>
+                        <button class="color-preset" style="background-color: #50fa7b;" data-color="#50fa7b" aria-label="Preset color green"></button>
+                        <button class="color-preset" style="background-color: #8be9fd;" data-color="#8be9fd" aria-label="Preset color cyan"></button>
+                        <button class="color-preset" style="background-color: #bd93f9;" data-color="#bd93f9" aria-label="Preset color purple"></button>
+                        <button class="color-preset" style="background-color: #ff5555;" data-color="#ff5555" aria-label="Preset color red"></button>
+                        <button class="color-preset" style="background-color: #6272a4;" data-color="#6272a4" aria-label="Preset color blue gray"></button>
+                        <button class="color-preset" style="background-color: #38ef7d;" data-color="#38ef7d" aria-label="Preset color bright green"></button>
+                        <button class="color-preset" style="background-color: #11998e;" data-color="#11998e" aria-label="Preset color teal"></button>
+                        <button class="color-preset" style="background-color: #f39c12;" data-color="#f39c12" aria-label="Preset color amber"></button>
+                        <button class="color-preset" style="background-color: #e74c3c;" data-color="#e74c3c" aria-label="Preset color dark red"></button>
+                    </div>
+                    <div class="custom-color-row">
+                        <label for="edit-tier-color-custom">Custom Color:</label>
+                        <input type="color" id="edit-tier-color-custom" value="#ff79c6">
+                    </div>
+                </div>
+                <div class="flex-input-row" style="margin-top: 1.5rem;">
+                    <button class="btn btn-outline" id="btn-cancel-tier-edit">Cancel</button>
+                    <button class="btn btn-primary" id="btn-save-tier-settings">Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GENERIC CONFIRMATION MODAL -->
+    <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+        <div class="modal-content glassmorphism">
+            <div class="modal-header">
+                <h3 id="confirm-modal-title">Confirm Action</h3>
+                <button class="close-btn" id="btn-close-confirm-modal" aria-label="Close modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-modal-message" style="margin-bottom: 1.5rem; color: var(--text-secondary); line-height: 1.5;"></p>
+                <div class="flex-input-row">
+                    <button class="btn btn-outline" id="btn-confirm-cancel">Cancel</button>
+                    <button class="btn btn-danger" id="btn-confirm-ok">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
