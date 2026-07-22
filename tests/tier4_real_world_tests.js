@@ -10,9 +10,10 @@ async function runTier4Tests(reporter) {
     await reporter.test("T4_SCENARIO_01: Full E2E Tier List Creation, Export, Reload, and Capture Workflow", async () => {
         const { app, helpers, window } = createTestEnvironment();
         
-        // Step 1: Load preset template
-        app.loadTemplate('rpg-legends');
-        reporter.assert(app.state.pool.length === 6, "Step 1: Loaded RPG Legends template with 6 games");
+        // Step 1: Add games to pool
+        app.addGameToPool('1086940', "Baldur's Gate 3", 'http://img');
+        app.addGameToPool('1245620', "Elden Ring", 'http://img');
+        reporter.assert(app.state.pool.length === 2, "Step 1: Added initial games to pool");
         
         // Step 2: Add extra game via App ID
         helpers.typeInput('#steam-id-input', '730');
@@ -78,10 +79,9 @@ async function runTier4Tests(reporter) {
         const lastToast = helpers.getLastToast();
         reporter.assert(lastToast && lastToast.isError, "Step 2: Graceful error toast displayed for malformed JSON");
         
-        // Step 3: Recover app state by loading a preset template
-        app.loadTemplate('competitive-fps');
-        reporter.assert(app.state.listTitle.includes("Competitive Shooters"), "Step 3: Board recovered via preset template");
-        reporter.assert(app.state.pool.length === 6, "Step 3: 6 games loaded into pool");
+        // Step 3: Recover app state by adding a valid game
+        app.addGameToPool('730', 'Counter-Strike 2', 'http://img');
+        reporter.assert(app.state.pool.length === 1, "Step 3: Game loaded into pool");
         
         // Step 4: Save valid list to LocalStorage
         helpers.click('#btn-save');

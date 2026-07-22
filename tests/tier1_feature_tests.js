@@ -46,14 +46,14 @@ async function runTier1Tests(reporter) {
         reporter.assert(dropdown.style.display === 'none', "Dropdown should hide when input cleared");
     });
 
-    await reporter.test("T1_SEARCH_04: Fallback to local preset templates search when API returns empty", async () => {
+    await reporter.test("T1_SEARCH_04: Fallback to empty message when API search returns no results", async () => {
         const { app, helpers } = createTestEnvironment();
-        helpers.typeInput('#steam-search', 'Hades');
+        helpers.typeInput('#steam-search', 'NonExistentGame12345');
         await new Promise(r => setTimeout(r, 450));
         
         const dropdown = helpers.getDocument().getElementById('search-dropdown');
-        reporter.assert(dropdown.style.display === 'block', "Dropdown should show fallback local results");
-        reporter.assert(dropdown.textContent.includes('Hades'), "Dropdown should find Hades from local templates");
+        reporter.assert(dropdown.style.display === 'block', "Dropdown should show fallback message");
+        reporter.assert(dropdown.textContent.includes('No games found'), "Dropdown should show empty state message");
     });
 
     await reporter.test("T1_SEARCH_05: Spinner element visibility toggles during active search query", async () => {
@@ -553,6 +553,23 @@ async function runTier1Tests(reporter) {
         await new Promise(r => setTimeout(r, 20));
         
         reporter.assert(downloadName === 'My_Gaming_Tier_List_tierlist.png', "Filename should replace spaces with underscores");
+    });
+
+    await reporter.test("T1_SHARE_01: Generate share URL encodes board state and decodes on init", async () => {
+        const { app, helpers, createTestEnvironment: createEnv } = require('./harness');
+        const env1 = createTestEnvironment();
+        env1.app.addGameToPool('570', 'Dota 2', 'http://img');
+        
+        const shareUrl = env1.app.generateShareUrl(env1.app.state);
+        reporter.assert(shareUrl.includes('#share='), "Share URL contains #share= payload");
+        
+        // Simulate opening share URL in a fresh environment
+        const shareHash = shareUrl.substring(shareUrl.indexOf('#share='));
+        const env2 = createTestEnvironment();
+        env2.window.location.hash = shareHash;
+        env2.app.checkAndLoadShareUrl();
+        
+        reporter.assert(env2.app.state.pool.some(g => g.id === '570'), "Shared game Dota 2 loaded into new app state");
     });
 
     reporter.finishSuite();

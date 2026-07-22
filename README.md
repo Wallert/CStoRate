@@ -1,5 +1,9 @@
 # CStoRate — Steam Gaming Tier List Maker 🎮
 
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Try_it_Now-ff79c6?style=for-the-badge)](https://wallert.github.io/CStoRate/)
+
+> **🌐 Live Web Application:** [https://wallert.github.io/CStoRate/](https://wallert.github.io/CStoRate/)
+
 A simple, fast, and customizable web tool for creating Steam game tier lists. 
 
 Easily search for games on Steam, paste store links or App IDs, drag and drop games to rank them, and export your tier list as a PNG image or JSON file.

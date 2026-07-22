@@ -141,18 +141,19 @@ async function runTier3Tests(reporter) {
         reporter.assert(exportedObj.cardSize === 'small', "Exported JSON reflects updated small size");
     });
 
-    await reporter.test("T3_COMB_07: Load preset template, add game by App ID, save to library, delete from library", async () => {
+    await reporter.test("T3_COMB_07: Populate games, add by App ID, save to library, delete from library", async () => {
         const { app, helpers } = createTestEnvironment();
-        app.loadTemplate('rpg-legends');
-        reporter.assert(app.state.pool.length === 6, "RPG Legends template loaded with 6 games");
+        app.addGameToPool('1086940', "Baldur's Gate 3", 'http://img');
+        reporter.assert(app.state.pool.length === 1, "Pool initialized with 1 game");
         
         // Add game by App ID
         helpers.typeInput('#steam-id-input', '570');
         helpers.click('#btn-add-by-id');
         await new Promise(r => setTimeout(r, 50));
-        reporter.assert(app.state.pool.length === 7, "Dota 2 added, pool count now 7");
+        reporter.assert(app.state.pool.length === 2, "Dota 2 added, pool count now 2");
         
         // Save to Library
+        helpers.typeInput('#list-title', 'My Custom List');
         helpers.click('#btn-save');
         const listId = app.state.id;
         reporter.assert(app.state.savedLists.length === 1, "Saved to library");

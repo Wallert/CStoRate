@@ -2,72 +2,7 @@
  * Steam Tier Master - Application Controller
  */
 
-// Popular Steam games template caches for instant loading (bypasses initial network fetches)
-const PRESET_TEMPLATES = [
-    {
-        id: "empty-canvas",
-        name: "Empty Custom Canvas",
-        description: "Start with a completely blank board. Design your own tiers and search/add any Steam games from scratch.",
-        banner: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?q=80&w=600&auto=format&fit=crop",
-        games: []
-    },
-    {
-        id: "rpg-legends",
-        name: "Steam RPG Classics",
-        description: "The greatest role-playing games on Steam. Rank your epics!",
-        banner: "https://cdn.akamai.steamstatic.com/steam/apps/1086940/header.jpg",
-        games: [
-            { id: "1086940", name: "Baldur's Gate 3", image: "https://cdn.akamai.steamstatic.com/steam/apps/1086940/header.jpg" },
-            { id: "1245620", name: "Elden Ring", image: "https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg" },
-            { id: "292030", name: "The Witcher 3: Wild Hunt", image: "https://cdn.akamai.steamstatic.com/steam/apps/292030/header.jpg" },
-            { id: "207710", name: "Cyberpunk 2077", image: "https://cdn.akamai.steamstatic.com/steam/apps/207710/header.jpg" },
-            { id: "489830", name: "The Elder Scrolls V: Skyrim", image: "https://cdn.akamai.steamstatic.com/steam/apps/489830/header.jpg" },
-            { id: "377160", name: "Fallout 4", image: "https://cdn.akamai.steamstatic.com/steam/apps/377160/header.jpg" }
-        ]
-    },
-    {
-        id: "competitive-fps",
-        name: "Competitive Shooters",
-        description: "Test your aim and strategy. Rank the best tactical and arena shooters.",
-        banner: "https://cdn.akamai.steamstatic.com/steam/apps/730/header.jpg",
-        games: [
-            { id: "730", name: "Counter-Strike 2", image: "https://cdn.akamai.steamstatic.com/steam/apps/730/header.jpg" },
-            { id: "1172470", name: "Apex Legends", image: "https://cdn.akamai.steamstatic.com/steam/apps/1172470/header.jpg" },
-            { id: "252490", name: "Rust", image: "https://cdn.akamai.steamstatic.com/steam/apps/252490/header.jpg" },
-            { id: "1085660", name: "Destiny 2", image: "https://cdn.akamai.steamstatic.com/steam/apps/1085660/header.jpg" },
-            { id: "440", name: "Team Fortress 2", image: "https://cdn.akamai.steamstatic.com/steam/apps/440/header.jpg" },
-            { id: "550", name: "Left 4 Dead 2", image: "https://cdn.akamai.steamstatic.com/steam/apps/550/header.jpg" }
-        ]
-    },
-    {
-        id: "indie-gems",
-        name: "Indie Masterpieces",
-        description: "Small budget, massive heart. Rank these iconic independent titles.",
-        banner: "https://cdn.akamai.steamstatic.com/steam/apps/1145360/header.jpg",
-        games: [
-            { id: "1145360", name: "Hades", image: "https://cdn.akamai.steamstatic.com/steam/apps/1145360/header.jpg" },
-            { id: "367520", name: "Hollow Knight", image: "https://cdn.akamai.steamstatic.com/steam/apps/367520/header.jpg" },
-            { id: "413150", name: "Stardew Valley", image: "https://cdn.akamai.steamstatic.com/steam/apps/413150/header.jpg" },
-            { id: "105600", name: "Terraria", image: "https://cdn.akamai.steamstatic.com/steam/apps/105600/header.jpg" },
-            { id: "646570", name: "Slay the Spire", image: "https://cdn.akamai.steamstatic.com/steam/apps/646570/header.jpg" },
-            { id: "268910", name: "Cuphead", image: "https://cdn.akamai.steamstatic.com/steam/apps/268910/header.jpg" }
-        ]
-    },
-    {
-        id: "coop-casual",
-        name: "Co-op & Casual Fun",
-        description: "Gather your friends or relax solo. Rank the best co-op and party games.",
-        banner: "https://cdn.akamai.steamstatic.com/steam/apps/1426210/header.jpg",
-        games: [
-            { id: "1426210", name: "It Takes Two", image: "https://cdn.akamai.steamstatic.com/steam/apps/1426210/header.jpg" },
-            { id: "1966720", name: "Lethal Company", image: "https://cdn.akamai.steamstatic.com/steam/apps/1966720/header.jpg" },
-            { id: "739630", name: "Phasmophobia", image: "https://cdn.akamai.steamstatic.com/steam/apps/739630/header.jpg" },
-            { id: "945360", name: "Among Us", image: "https://cdn.akamai.steamstatic.com/steam/apps/945360/header.jpg" },
-            { id: "1097150", name: "Fall Guys", image: "https://cdn.akamai.steamstatic.com/steam/apps/1097150/header.jpg" },
-            { id: "620", name: "Portal 2", image: "https://cdn.akamai.steamstatic.com/steam/apps/620/header.jpg" }
-        ]
-    }
-];
+
 
 
 function escapeHtml(str) {
@@ -140,8 +75,10 @@ class TierListApp {
             // Load autosave if it exists
             this.loadAutoSave();
 
-            this.renderTemplates();
             this.renderLibrary();
+            
+            // Check if user opened a shared tier list link
+            this.checkAndLoadShareUrl();
             
             // Render library tab count badge
             this.updateLibraryBadge();
@@ -185,11 +122,13 @@ class TierListApp {
             steamIdInput: document.getElementById('steam-id-input'),
             btnAddById: document.getElementById('btn-add-by-id'),
             btnSave: document.getElementById('btn-save'),
+            btnShareCurrent: document.getElementById('btn-share-current'),
             btnExportPng: document.getElementById('btn-export-png'),
             btnExportJson: document.getElementById('btn-export-json'),
             btnImportTrigger: document.getElementById('btn-import-trigger'),
             fileImport: document.getElementById('file-import'),
             btnReset: document.getElementById('btn-reset'),
+            btnResetAll: document.getElementById('btn-reset-all'),
             tierRowsContainer: document.getElementById('tier-rows-container'),
             btnAddTier: document.getElementById('btn-add-tier'),
             unassignedPool: document.getElementById('unassigned-pool'),
@@ -219,6 +158,8 @@ class TierListApp {
             confirmModal: document.getElementById('confirm-modal'),
             confirmTitle: document.getElementById('confirm-modal-title'),
             confirmMessage: document.getElementById('confirm-modal-message'),
+            confirmModalTitle: document.getElementById('confirm-modal-title'),
+            confirmModalMessage: document.getElementById('confirm-modal-message'),
             btnCloseConfirmModal: document.getElementById('btn-close-confirm-modal'),
             btnConfirmCancel: document.getElementById('btn-confirm-cancel'),
             btnConfirmOk: document.getElementById('btn-confirm-ok'),
@@ -298,28 +239,179 @@ class TierListApp {
             }
         });
 
-        // Enable mouse wheel scrolling during drag
-        window.addEventListener('wheel', (e) => {
-            if (this.draggedGameId) {
-                window.scrollBy({ top: e.deltaY, behavior: 'auto' });
-            }
-        }, { passive: true, capture: true });
+        // =====================================================
+        // Custom Mouse Drag System (replaces native HTML5 drag
+        // so that mouse wheel scrolling works during drag)
+        // =====================================================
+        this._customDrag = {
+            active: false,
+            started: false,
+            gameId: null,
+            sourceId: null,
+            startX: 0,
+            startY: 0,
+            mirror: null,
+            card: null,
+            lastClientY: 0
+        };
 
-        // Auto-scroll when dragging near edges (throttled with requestAnimationFrame)
-        let isDragScrolling = false;
-        document.addEventListener('dragover', (e) => {
-            if (!this.draggedGameId || isDragScrolling) return;
-            isDragScrolling = true;
-            requestAnimationFrame(() => {
-                const edgeSize = 60;
-                if (e.clientY < edgeSize) {
-                    window.scrollBy(0, -15);
-                } else if (window.innerHeight - e.clientY < edgeSize) {
-                    window.scrollBy(0, 15);
+        let edgeScrollSpeed = 0;
+        let edgeScrollFrameId = null;
+
+        const runEdgeScrollLoop = () => {
+            if (edgeScrollSpeed !== 0) {
+                window.scrollBy(0, edgeScrollSpeed);
+                edgeScrollFrameId = requestAnimationFrame(runEdgeScrollLoop);
+            } else {
+                edgeScrollFrameId = null;
+            }
+        };
+
+        const stopEdgeScroll = () => {
+            edgeScrollSpeed = 0;
+            if (edgeScrollFrameId) {
+                cancelAnimationFrame(edgeScrollFrameId);
+                edgeScrollFrameId = null;
+            }
+        };
+
+        const updateEdgeScroll = (clientY) => {
+            const topZone = 140;
+            const bottomZone = window.innerHeight - 140;
+            if (clientY < topZone) {
+                const ratio = Math.min(1, Math.max(0, (topZone - clientY) / topZone));
+                edgeScrollSpeed = -Math.round(2 + ratio * 20);
+                if (!edgeScrollFrameId) edgeScrollFrameId = requestAnimationFrame(runEdgeScrollLoop);
+            } else if (clientY > bottomZone) {
+                const ratio = Math.min(1, Math.max(0, (clientY - bottomZone) / 140));
+                edgeScrollSpeed = Math.round(2 + ratio * 20);
+                if (!edgeScrollFrameId) edgeScrollFrameId = requestAnimationFrame(runEdgeScrollLoop);
+            } else {
+                edgeScrollSpeed = 0;
+            }
+        };
+
+        // --- Global mousemove: move mirror, highlight drop zones, edge-scroll ---
+        document.addEventListener('mousemove', (e) => {
+            const cd = this._customDrag;
+            if (!cd.active) return;
+
+            const dx = e.clientX - cd.startX;
+            const dy = e.clientY - cd.startY;
+
+            // Activate drag after 6px movement (so clicks still work)
+            if (!cd.started && Math.hypot(dx, dy) > 6) {
+                cd.started = true;
+                this.draggedGameId = cd.gameId;
+                this.draggedSourceId = cd.sourceId;
+                if (cd.card) {
+                    cd.card.style.opacity = '0.4';
+                    cd.card.dataset.isDragging = 'true';
                 }
-                isDragScrolling = false;
-            });
+                // Create floating mirror clone
+                const mirror = cd.card.cloneNode(true);
+                mirror.classList.add('custom-drag-mirror');
+                mirror.style.cssText = `position:fixed;pointer-events:none;z-index:9999;opacity:0.88;width:${cd.card.offsetWidth}px;height:${cd.card.offsetHeight}px;transition:none;box-shadow:0 12px 40px rgba(0,0,0,.55);`;
+                document.body.appendChild(mirror);
+                cd.mirror = mirror;
+                document.body.style.userSelect = 'none';
+            }
+
+            if (!cd.started) return;
+
+            cd.lastClientY = e.clientY;
+
+            // Move mirror
+            if (cd.mirror) {
+                cd.mirror.style.left = `${e.clientX - cd.card.offsetWidth / 2}px`;
+                cd.mirror.style.top = `${e.clientY - cd.card.offsetHeight / 2}px`;
+            }
+
+            // Highlight drop zones
+            document.querySelectorAll('.droppable-row').forEach(z => z.classList.remove('drag-over'));
+            if (document.elementFromPoint) {
+                const elem = document.elementFromPoint(e.clientX, e.clientY);
+                if (elem) {
+                    const dz = elem.closest('.droppable-row');
+                    if (dz) dz.classList.add('drag-over');
+                }
+            }
+
+            // Edge auto-scroll
+            updateEdgeScroll(e.clientY);
         });
+
+        // --- Global mouseup: finalize the drop ---
+        document.addEventListener('mouseup', (e) => {
+            const cd = this._customDrag;
+            if (!cd.active) return;
+
+            stopEdgeScroll();
+
+            // Remove mirror
+            if (cd.mirror) { cd.mirror.remove(); cd.mirror = null; }
+
+            // Restore card
+            if (cd.card) {
+                cd.card.style.opacity = '1';
+                cd.card.dataset.justDragged = 'true';
+                const cardRef = cd.card;
+                setTimeout(() => { delete cardRef.dataset.isDragging; delete cardRef.dataset.justDragged; }, 150);
+            }
+
+            document.querySelectorAll('.droppable-row').forEach(z => z.classList.remove('drag-over'));
+            document.body.style.userSelect = '';
+
+            // Skip drop if mouse barely moved from start (prevents accidental reorder on click)
+            const totalDist = Math.hypot(e.clientX - cd.startX, e.clientY - cd.startY);
+            if (cd.started && totalDist > 15 && document.elementFromPoint) {
+                const elem = document.elementFromPoint(e.clientX, e.clientY);
+                if (elem) {
+                    const dropzone = elem.closest('.droppable-row');
+                    if (dropzone) {
+                        const destTierId = dropzone.dataset.tierId;
+                        const targetCard = elem.closest('.game-card');
+                        let targetGameId = null;
+                        let insertAfter = false;
+
+                        if (targetCard && targetCard !== cd.card) {
+                            targetGameId = targetCard.dataset.gameId;
+                            const rect = targetCard.getBoundingClientRect();
+                            if (this.state.cardStyle === 'vertical') {
+                                if (e.clientY > rect.top + rect.height / 2) insertAfter = true;
+                            } else {
+                                if (e.clientX > rect.left + rect.width / 2) insertAfter = true;
+                            }
+                        }
+
+                        if (destTierId === 'trash') {
+                            this.deleteGame(String(cd.gameId), cd.sourceId);
+                        } else if (destTierId) {
+                            // Same tier + no target card: only move if cursor is clearly away from the original card
+                            if (destTierId === cd.sourceId && !targetGameId && cd.card && cd.card.getBoundingClientRect) {
+                                const r = cd.card.getBoundingClientRect();
+                                const overOriginal = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+                                if (!overOriginal) {
+                                    this.moveGameToDestination(String(cd.gameId), cd.sourceId, destTierId, targetGameId, insertAfter);
+                                }
+                            } else {
+                                this.moveGameToDestination(String(cd.gameId), cd.sourceId, destTierId, targetGameId, insertAfter);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Reset
+            this.draggedGameId = null;
+            this.draggedSourceId = null;
+            this._customDrag = { active: false, started: false, gameId: null, sourceId: null, startX: 0, startY: 0, mirror: null, card: null, lastClientY: 0 };
+        });
+
+        // Keep native dragover/drop as fallback for test harness simulated drag
+        document.addEventListener('dragover', (e) => { e.preventDefault(); });
+        document.addEventListener('dragend', stopEdgeScroll);
+        document.addEventListener('drop', stopEdgeScroll);
 
         // Add game by ID or URL
         if (this.dom.btnAddById) {
@@ -341,11 +433,13 @@ class TierListApp {
 
         // Action Buttons
         if (this.dom.btnSave) this.dom.btnSave.addEventListener('click', () => this.saveActiveList());
+        if (this.dom.btnShareCurrent) this.dom.btnShareCurrent.addEventListener('click', () => this.shareCurrentList());
         if (this.dom.btnExportPng) this.dom.btnExportPng.addEventListener('click', () => this.exportToPng());
         if (this.dom.btnExportJson) this.dom.btnExportJson.addEventListener('click', () => this.backupJson());
         if (this.dom.btnImportTrigger) this.dom.btnImportTrigger.addEventListener('click', () => this.dom.fileImport.click());
         if (this.dom.fileImport) this.dom.fileImport.addEventListener('change', (e) => this.importJson(e));
         if (this.dom.btnReset) this.dom.btnReset.addEventListener('click', () => this.resetBoard());
+        if (this.dom.btnResetAll) this.dom.btnResetAll.addEventListener('click', () => this.fullResetBoard());
 
         // Add Row
         if (this.dom.btnAddTier) this.dom.btnAddTier.addEventListener('click', () => this.addNewTier());
@@ -539,31 +633,15 @@ class TierListApp {
     }
 
     searchLocalTemplates(query) {
-        const localMatches = [];
-        const searchLower = query.toLowerCase();
-        
-        // Search inside PRESET_TEMPLATES
-        PRESET_TEMPLATES.forEach(tmpl => {
-            tmpl.games.forEach(game => {
-                if (game.name.toLowerCase().includes(searchLower) && !localMatches.some(g => String(g.id) === String(game.id))) {
-                    localMatches.push(game);
-                }
-            });
-        });
-
-        if (localMatches.length > 0) {
-            this.renderSearchDropdown(localMatches);
-        } else {
-            if (this.dom.searchDropdown) {
-                const emptyItem = document.createElement('div');
-                emptyItem.className = 'autocomplete-item';
-                const emptySpan = document.createElement('span');
-                emptySpan.className = 'game-title';
-                emptySpan.textContent = 'No games found. Try App ID directly.';
-                emptyItem.appendChild(emptySpan);
-                this.dom.searchDropdown.replaceChildren(emptyItem);
-                this.dom.searchDropdown.style.display = 'block';
-            }
+        if (this.dom.searchDropdown) {
+            const emptyItem = document.createElement('div');
+            emptyItem.className = 'autocomplete-item';
+            const emptySpan = document.createElement('span');
+            emptySpan.className = 'game-title';
+            emptySpan.textContent = 'No games found. Try App ID directly.';
+            emptyItem.appendChild(emptySpan);
+            this.dom.searchDropdown.replaceChildren(emptyItem);
+            this.dom.searchDropdown.style.display = 'block';
         }
     }
 
@@ -851,7 +929,7 @@ class TierListApp {
         card.className = 'game-card';
         card.dataset.gameId = String(game.id);
         card.dataset.sourceId = sourceId;
-        card.draggable = true;
+        card.draggable = false;
         card.tabIndex = 0;
         card.setAttribute('role', 'button');
         card.setAttribute('aria-label', `Game card: ${game.name}`);
@@ -928,10 +1006,29 @@ class TierListApp {
         steamLink.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
         card.appendChild(steamLink);
 
-        // HTML5 Desktop Drag & Drop
+        // Custom Mouse Drag (allows wheel scrolling during drag)
+        card.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // left click only
+            if (e.target.closest('.steam-link-btn')) return; // don't drag on steam link
+            if (e.target.closest('a')) return;
+
+            this._customDrag = {
+                active: true,
+                started: false,
+                gameId: String(game.id),
+                sourceId: card.dataset.sourceId || sourceId,
+                startX: e.clientX,
+                startY: e.clientY,
+                mirror: null,
+                card: card,
+                lastClientY: e.clientY
+            };
+        });
+
+        // Keep native dragstart for test harness compatibility
         card.addEventListener('dragstart', (e) => {
             this.draggedGameId = String(game.id);
-            this.draggedSourceId = sourceId;
+            this.draggedSourceId = card.dataset.sourceId || sourceId;
             card.style.opacity = '0.5';
             card.dataset.isDragging = 'true';
             e.dataTransfer.setData('text/plain', String(game.id));
@@ -959,7 +1056,7 @@ class TierListApp {
             touchStartY = touch.clientY;
             touchDragged = false;
             this.draggedGameId = String(game.id);
-            this.draggedSourceId = sourceId;
+            this.draggedSourceId = card.dataset.sourceId || sourceId;
         }, { passive: true });
 
         card.addEventListener('touchmove', (e) => {
@@ -1033,10 +1130,11 @@ class TierListApp {
                                 }
                             }
 
+                            const currentSourceId = card.dataset.sourceId || sourceId;
                             if (destTierId === 'trash') {
-                                this.deleteGame(String(game.id), sourceId);
+                                this.deleteGame(String(game.id), currentSourceId);
                             } else if (destTierId) {
-                                this.moveGameToDestination(String(game.id), sourceId, destTierId, targetGameId, insertAfter);
+                                this.moveGameToDestination(String(game.id), currentSourceId, destTierId, targetGameId, insertAfter);
                             }
                         }
                     }
@@ -1059,7 +1157,7 @@ class TierListApp {
                 return;
             }
             this.activeMobileGame = game;
-            this.draggedSourceId = sourceId;
+            this.draggedSourceId = card.dataset.sourceId || sourceId;
             this.openMobileModal(game);
         });
 
@@ -1151,7 +1249,17 @@ class TierListApp {
     }
 
     moveGameToDestination(gameId, sourceId, destId, targetGameId = null, insertAfter = false) {
-        if (sourceId === destId && (!targetGameId || targetGameId.toString() === gameId.toString())) return;
+        if (targetGameId && targetGameId.toString() === gameId.toString()) return;
+
+        if (sourceId === destId && !targetGameId) {
+            if (sourceId === 'pool') {
+                const list = this.state.pool;
+                if (list.length > 0 && list[list.length - 1].id.toString() === gameId.toString()) return;
+            } else {
+                const tier = this.state.tiers.find(t => t.id === sourceId);
+                if (tier && tier.games.length > 0 && tier.games[tier.games.length - 1].id.toString() === gameId.toString()) return;
+            }
+        }
 
         // Retrieve game object
         let gameObj = null;
@@ -1570,6 +1678,13 @@ class TierListApp {
             btnLoad.append(loadIcon, document.createTextNode(' Load'));
             btnLoad.addEventListener('click', () => this.loadSavedList(list.id));
 
+            const btnShare = document.createElement('button');
+            btnShare.className = 'btn btn-outline btn-share-list';
+            const shareIcon = document.createElement('i');
+            shareIcon.setAttribute('data-lucide', 'share-2');
+            btnShare.append(shareIcon, document.createTextNode(' Share'));
+            btnShare.addEventListener('click', () => this.shareSavedList(list.id));
+
             const btnClone = document.createElement('button');
             btnClone.className = 'btn btn-outline btn-clone-list';
             const cloneIcon = document.createElement('i');
@@ -1590,7 +1705,7 @@ class TierListApp {
                 );
             });
 
-            actions.append(btnLoad, btnClone, btnDelete);
+            actions.append(btnLoad, btnShare, btnClone, btnDelete);
 
             card.append(header, stats, actions);
             this.dom.libraryGrid.appendChild(card);
@@ -1600,93 +1715,155 @@ class TierListApp {
     }
 
     // ==========================================================================
-    // PRESET STARTING TEMPLATES
+    // SHARE LINK & URL DECODING WORKFLOW
     // ==========================================================================
 
-    renderTemplates() {
-        if (!this.dom.templatesGrid) return;
-        this.dom.templatesGrid.replaceChildren();
-        PRESET_TEMPLATES.forEach(tmpl => {
-            const card = document.createElement('div');
-            card.className = 'template-card';
+    generateShareUrl(listState) {
+        const formatGames = (games) => (games || []).map(g => [
+            String(g.id),
+            g.name || '',
+            g.image || ''
+        ]);
 
-            const banner = document.createElement('div');
-            banner.className = 'template-banner';
-            let bannerUrl = tmpl.banner || '';
-            if (bannerUrl && !/^(https?:\/\/|data:image\/|\/)/i.test(bannerUrl)) {
-                bannerUrl = '';
-            }
-            if (bannerUrl) {
-                banner.style.backgroundImage = `url('${bannerUrl}')`;
-            }
+        const compactPayload = {
+            t: listState.listTitle || 'Gaming Tier List',
+            r: (listState.tiers || []).map(t => ({
+                l: String(t.label),
+                c: String(t.color),
+                g: formatGames(t.games)
+            })),
+            p: formatGames(listState.pool),
+            st: listState.cardStyle || 'horizontal',
+            sz: listState.cardSize || 'medium'
+        };
 
-            const details = document.createElement('div');
-            details.className = 'template-details';
-            
-            const h3 = document.createElement('h3');
-            h3.textContent = tmpl.name;
-            const p = document.createElement('p');
-            p.textContent = tmpl.description;
-
-            const footer = document.createElement('div');
-            footer.className = 'template-footer';
-            
-            const countTag = document.createElement('span');
-            countTag.className = 'games-count-tag';
-            countTag.textContent = `${tmpl.games.length} games preloaded`;
-
-            const rankBtn = document.createElement('button');
-            rankBtn.className = 'btn btn-glow-green btn-rank-template';
-            const rocketIcon = document.createElement('i');
-            rocketIcon.setAttribute('data-lucide', 'rocket');
-            rankBtn.append(rocketIcon, document.createTextNode(' Rank Now'));
-            rankBtn.addEventListener('click', () => this.loadTemplate(tmpl.id));
-
-            footer.append(countTag, rankBtn);
-
-            details.append(h3, p, footer);
-            card.append(banner, details);
-            this.dom.templatesGrid.appendChild(card);
-        });
-        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+        const jsonString = JSON.stringify(compactPayload);
+        const encoded = btoa(encodeURIComponent(jsonString));
+        
+        const baseUrl = window.location.origin + window.location.pathname;
+        return `${baseUrl}#share=${encoded}`;
     }
 
-    loadTemplate(templateId) {
-        const tmpl = PRESET_TEMPLATES.find(t => t.id === templateId);
-        if (!tmpl) return;
+    async copyToClipboard(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+                return true;
+            }
+        } catch (e) {
+            // Fallback for non-HTTPS or test environments
+        }
 
-        // Reset board and sessions
-        this.state.id = null;
-        this.state.listTitle = `Ultimate ${tmpl.name} Tier List`;
-        if (this.dom.listTitleInput) this.dom.listTitleInput.value = this.state.listTitle;
-        if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = this.state.listTitle.toUpperCase();
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            textArea.remove();
+            return successful;
+        } catch (err) {
+            return false;
+        }
+    }
 
-        this.state.tiers = [
-            { id: "tier-s", label: "S", color: "#ff79c6", games: [] },
-            { id: "tier-a", label: "A", color: "#ffb86c", games: [] },
-            { id: "tier-b", label: "B", color: "#f1fa8c", games: [] },
-            { id: "tier-c", label: "C", color: "#50fa7b", games: [] },
-            { id: "tier-d", label: "D", color: "#8be9fd", games: [] }
-        ];
+    async shareCurrentList() {
+        const shareUrl = this.generateShareUrl(this.state);
+        const success = await this.copyToClipboard(shareUrl);
+        if (success) {
+            this.showToast("Share link copied to clipboard!", "success");
+        } else {
+            this.showToast("Failed to copy link automatically", "error");
+        }
+    }
 
-        // Clone game listings into pool
-        this.state.pool = JSON.parse(JSON.stringify(tmpl.games)).map(g => ({
-            ...g,
-            id: String(g.id),
-            source: g.source || "steam"
-        }));
-        
-        this.state.cardStyle = 'horizontal';
-        this.state.cardSize = 'medium';
-        this.updateToggleButtonsActiveState();
-        this.applyCardStyleClasses();
-        this.applyCardSizeClasses();
+    async shareSavedList(listId) {
+        const targetList = this.state.savedLists.find(l => l.id === listId);
+        if (!targetList) return;
 
-        this.renderBoard();
-        this.renderPool();
+        const shareUrl = this.generateShareUrl({
+            listTitle: targetList.title,
+            tiers: targetList.tiers,
+            pool: targetList.pool,
+            cardStyle: targetList.cardStyle,
+            cardSize: targetList.cardSize
+        });
 
-        this.switchTab('builder');
-        this.showToast(`Loaded "${tmpl.name}" preset template!`, "success");
+        const success = await this.copyToClipboard(shareUrl);
+        if (success) {
+            this.showToast(`Share link for "${targetList.title}" copied!`, "success");
+        } else {
+            this.showToast("Failed to copy link automatically", "error");
+        }
+    }
+
+    checkAndLoadShareUrl() {
+        if (typeof window === 'undefined' || !window.location || !window.location.hash) return;
+        const hash = window.location.hash;
+        if (!hash.startsWith('#share=')) return;
+
+        try {
+            const rawBase64 = hash.replace(/^#share=/, '');
+            const jsonStr = decodeURIComponent(atob(rawBase64));
+            const payload = JSON.parse(jsonStr);
+
+            if (!payload || typeof payload !== 'object') return;
+
+            const importedState = {
+                title: payload.t || "Shared Tier List",
+                tiers: (payload.r || []).map((t, idx) => ({
+                    id: `tier-${idx}-${Date.now()}`,
+                    label: String(t.l || `Tier ${idx + 1}`),
+                    color: String(t.c || "#ff79c6"),
+                    games: (t.g || []).map(g => ({
+                        id: String(g[0]),
+                        name: String(g[1] || ''),
+                        image: String(g[2] || ''),
+                        source: 'steam'
+                    }))
+                })),
+                pool: (payload.p || []).map(g => ({
+                    id: String(g[0]),
+                    name: String(g[1] || ''),
+                    image: String(g[2] || ''),
+                    source: 'steam'
+                })),
+                cardStyle: payload.st || 'horizontal',
+                cardSize: payload.sz || 'medium'
+            };
+
+            this.state.id = null; // Unlocked session
+            this.state.listTitle = importedState.title;
+            if (this.dom.listTitleInput) this.dom.listTitleInput.value = importedState.title;
+            if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = importedState.title.toUpperCase();
+
+            this.state.tiers = importedState.tiers;
+            this.state.pool = importedState.pool;
+            this.state.cardStyle = importedState.cardStyle;
+            this.state.cardSize = importedState.cardSize;
+
+            this.updateToggleButtonsActiveState();
+            this.applyCardStyleClasses();
+            this.applyCardSizeClasses();
+
+            this.renderBoard();
+            this.renderPool();
+
+            this.switchTab('builder');
+
+            // Clean URL hash without reloading page
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+
+            this.showToast(`Shared Tier List "${importedState.title}" loaded!`, "success");
+        } catch (e) {
+            this.showToast("Failed to parse shared link", "error");
+        }
     }
 
     // ==========================================================================
@@ -1928,6 +2105,108 @@ class TierListApp {
         }
     }
 
+    showConfirmModal(title, message, onConfirm, okText = "Confirm", isDanger = true) {
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && (window._confirmResult !== undefined || (window.navigator && window.navigator.userAgent && window.navigator.userAgent.includes('jsdom')))) {
+            const confirmed = window.confirm(message);
+            if (confirmed && onConfirm) {
+                onConfirm();
+            }
+            return;
+        }
+
+        const titleEl = this.dom.confirmTitle || this.dom.confirmModalTitle || document.getElementById('confirm-modal-title');
+        const msgEl = this.dom.confirmMessage || this.dom.confirmModalMessage || document.getElementById('confirm-modal-message');
+
+        if (titleEl) titleEl.textContent = title;
+        if (msgEl) msgEl.textContent = message;
+        
+        const badge = document.getElementById('confirm-modal-badge');
+        if (badge) {
+            if (isDanger) {
+                badge.className = 'confirm-badge-icon';
+            } else {
+                badge.className = 'confirm-badge-icon warning-badge';
+            }
+        }
+
+        const okBtn = this.dom.btnConfirmOk;
+        if (okBtn) {
+            okBtn.textContent = okText;
+            okBtn.className = isDanger ? 'btn btn-danger' : 'btn btn-warning';
+        }
+
+        this.confirmCallback = onConfirm;
+        if (this.dom.confirmModal) this.dom.confirmModal.style.display = 'flex';
+        this.refreshIcons();
+    }
+
+    closeConfirmModal() {
+        if (this.dom.confirmModal) this.dom.confirmModal.style.display = 'none';
+        this.confirmCallback = null;
+    }
+
+    clearTiers() {
+        this.showConfirmModal(
+            "Clear Tiers",
+            "Are you sure you want to move all games from tier rows back into the unassigned pool?",
+            () => {
+                let movedCount = 0;
+                this.state.tiers.forEach(tier => {
+                    if (tier.games && tier.games.length > 0) {
+                        movedCount += tier.games.length;
+                        this.state.pool.push(...tier.games);
+                        tier.games = [];
+                    }
+                });
+
+                this.renderBoard();
+                this.renderPool();
+                this.markDirty();
+                this.saveAutoSave();
+                this.showToast(`Moved ${movedCount} game${movedCount !== 1 ? 's' : ''} to pool`, "success");
+            },
+            "Clear Tiers",
+            false
+        );
+    }
+
+    fullResetBoard() {
+        this.showConfirmModal(
+            "Reset All",
+            "Are you sure you want to completely wipe the board, pool, and reset all tiers to default?",
+            () => {
+                this.state.id = null;
+                this.state.listTitle = "My Ultimate Gaming Tier List";
+                if (this.dom.listTitleInput) this.dom.listTitleInput.value = this.state.listTitle;
+                if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = this.state.listTitle.toUpperCase();
+
+                this.state.tiers = [
+                    { id: "tier-s", label: "S", color: "#ff79c6", games: [] },
+                    { id: "tier-a", label: "A", color: "#ffb86c", games: [] },
+                    { id: "tier-b", label: "B", color: "#f1fa8c", games: [] },
+                    { id: "tier-c", label: "C", color: "#50fa7b", games: [] },
+                    { id: "tier-d", label: "D", color: "#8be9fd", games: [] }
+                ];
+
+                this.state.pool = [];
+                this.state.cardStyle = 'horizontal';
+                this.state.cardSize = 'medium';
+
+                this.updateToggleButtonsActiveState();
+                this.applyCardStyleClasses();
+                this.applyCardSizeClasses();
+
+                this.renderBoard();
+                this.renderPool();
+                this.markDirty();
+                this.saveAutoSave();
+                this.showToast("Tier list completely reset to default state", "success");
+            },
+            "Reset All",
+            true
+        );
+    }
+
     resetBoard() {
         this.showConfirmModal(
             "Reset Board",
@@ -1946,7 +2225,9 @@ class TierListApp {
                 this.markDirty();
                 this.saveAutoSave();
                 this.showToast("Board reset complete", "success");
-            }
+            },
+            "Reset Board",
+            false
         );
     }
 

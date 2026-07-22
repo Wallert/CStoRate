@@ -46,9 +46,6 @@
                 <button class="nav-btn active" data-tab="builder">
                     <i data-lucide="layout-grid"></i> Builder
                 </button>
-                <button class="nav-btn" data-tab="templates">
-                    <i data-lucide="sparkles"></i> Templates
-                </button>
                 <button class="nav-btn" data-tab="library">
                     <i data-lucide="folder-heart"></i> My Library
                     <span class="library-badge" id="library-count">0</span>
@@ -109,20 +106,28 @@
                                 <button class="btn btn-glow-blue" id="btn-save">
                                     <i data-lucide="save"></i> Save List
                                 </button>
-                                <button class="btn btn-glow-pink" id="btn-export-png">
-                                    <i data-lucide="image"></i> Export PNG
-                                </button>
-                                <button class="btn btn-outline" id="btn-export-json">
-                                    <i data-lucide="download"></i> Backup JSON
-                                </button>
                                 <button class="btn btn-outline btn-relative" id="btn-import-trigger">
                                     <i data-lucide="upload"></i> Load JSON
                                     <input type="file" id="file-import" accept=".json" style="display:none;">
                                 </button>
+                                <button class="btn btn-glow-pink" id="btn-export-png">
+                                    <i data-lucide="image"></i> Export PNG
+                                </button>
+                                <button class="btn btn-outline" id="btn-export-json">
+                                    <i data-lucide="download"></i> Save JSON
+                                </button>
                             </div>
-                            <button class="btn btn-danger btn-block" id="btn-reset">
-                                <i data-lucide="trash-2"></i> Reset Board
+                            <button class="btn btn-glow-purple btn-block" id="btn-share-current" style="margin-bottom: 8px;">
+                                <i data-lucide="share-2"></i> Share Link
                             </button>
+                            <div class="reset-actions-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                <button class="btn btn-warning" id="btn-reset" title="Move games from tiers to pool">
+                                    <i data-lucide="rotate-ccw"></i> Clear Tiers
+                                </button>
+                                <button class="btn btn-danger" id="btn-reset-all" title="Wipe board and reset to default">
+                                    <i data-lucide="trash-2"></i> Reset All
+                                </button>
+                            </div>
                         </div>
 
                     </aside>
@@ -199,19 +204,7 @@
                 </div>
             </section>
 
-            <!-- TEMPLATES TAB -->
-            <section id="tab-templates" class="tab-content">
-                <div class="templates-view">
-                    <div class="view-header">
-                        <h2><i data-lucide="sparkles"></i> Preset Starting Templates</h2>
-                        <p>Load a curated category template filled with top Steam games to rank instantly!</p>
-                    </div>
-                    
-                    <div class="templates-grid" id="templates-grid">
-                        <!-- Curated categories loaded via JS -->
-                    </div>
-                </div>
-            </section>
+
 
             <!-- LIBRARY TAB -->
             <section id="tab-library" class="tab-content">
@@ -299,14 +292,19 @@
 
     <!-- GENERIC CONFIRMATION MODAL -->
     <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
-        <div class="modal-content glassmorphism">
+        <div class="modal-content glassmorphism confirm-dialog-content">
             <div class="modal-header">
-                <h3 id="confirm-modal-title">Confirm Action</h3>
+                <div class="confirm-header-left">
+                    <div class="confirm-badge-icon" id="confirm-modal-badge">
+                        <i data-lucide="alert-triangle"></i>
+                    </div>
+                    <h3 id="confirm-modal-title">Confirm Action</h3>
+                </div>
                 <button class="close-btn" id="btn-close-confirm-modal" aria-label="Close modal"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
-                <p id="confirm-modal-message" style="margin-bottom: 1.5rem; color: var(--text-secondary); line-height: 1.5;"></p>
-                <div class="flex-input-row">
+                <p id="confirm-modal-message" class="confirm-message-text"></p>
+                <div class="confirm-footer-actions">
                     <button class="btn btn-outline" id="btn-confirm-cancel">Cancel</button>
                     <button class="btn btn-danger" id="btn-confirm-ok">Confirm</button>
                 </div>

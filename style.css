@@ -134,7 +134,8 @@ body.gaming-theme {
 
 /* App Container Layout */
 .app-container {
-    max-width: 1400px;
+    width: 80%;
+    max-width: 2050px;
     margin: 0 auto;
     padding: 2rem 1.5rem;
     position: relative;
@@ -555,6 +556,12 @@ select.gaming-select option {
     margin-bottom: 10px;
 }
 
+.actions-grid .btn {
+    padding: 0.65rem 0.35rem;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
 .btn-relative {
     position: relative;
 }
@@ -619,6 +626,20 @@ select.gaming-select option {
     box-shadow: 0 0 15px rgba(255, 85, 85, 0.4);
 }
 
+.btn-warning {
+    background: rgba(255, 184, 108, 0.15);
+    border: 1px solid rgba(255, 184, 108, 0.3);
+    color: var(--neon-yellow);
+    white-space: nowrap;
+}
+
+.btn-warning:hover {
+    background: var(--neon-yellow);
+    color: #000;
+    box-shadow: 0 0 15px rgba(255, 184, 108, 0.4);
+    font-weight: 700;
+}
+
 /* Glowing buttons */
 .btn-glow-blue {
     background: rgba(139, 233, 253, 0.12);
@@ -637,6 +658,26 @@ select.gaming-select option {
     background: rgba(255, 121, 198, 0.12);
     border: 1px solid rgba(255, 121, 198, 0.3);
     color: var(--neon-pink);
+}
+
+.btn-glow-pink:hover {
+    background: var(--neon-pink);
+    color: #000;
+    box-shadow: 0 0 15px rgba(255, 121, 198, 0.5);
+    font-weight: 700;
+}
+
+.btn-glow-purple {
+    background: rgba(189, 147, 249, 0.12);
+    border: 1px solid rgba(189, 147, 249, 0.3);
+    color: var(--neon-purple);
+}
+
+.btn-glow-purple:hover {
+    background: var(--neon-purple);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(189, 147, 249, 0.5);
+    font-weight: 700;
 }
 
 .btn-glow-pink:hover {
@@ -1448,6 +1489,68 @@ select.gaming-select option {
     margin: 8px 0;
 }
 
+/* Confirmation Modal Styling */
+.confirm-dialog-content {
+    max-width: 440px;
+    border: 1px solid rgba(255, 85, 85, 0.3);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7), 0 0 30px rgba(255, 85, 85, 0.15);
+    animation: modalPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.25) forwards;
+}
+
+.confirm-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.confirm-badge-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 85, 85, 0.15);
+    border: 1px solid rgba(255, 85, 85, 0.3);
+    color: var(--neon-red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.confirm-badge-icon.warning-badge {
+    background: rgba(255, 184, 108, 0.15);
+    border-color: rgba(255, 184, 108, 0.3);
+    color: var(--neon-yellow);
+}
+
+.confirm-message-text {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1rem 1.2rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.confirm-footer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+@keyframes modalPop {
+    from {
+        opacity: 0;
+        transform: scale(0.92) translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
 
 /* ==========================================================================
    TOAST NOTIFICATIONS
@@ -1663,4 +1766,18 @@ select.gaming-select option {
     font-size: 0.85rem;
     border-top: 1px solid rgba(0, 242, 254, 0.08);
     margin-top: 3rem;
+}
+
+/* High-Resolution & Screen Proportions (80% viewport scaling) */
+@media (max-width: 1200px) {
+    .app-container {
+        width: 92%;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-container {
+        width: 96%;
+        padding: 1rem 0.75rem;
+    }
 }
