@@ -7,6 +7,9 @@ const { runTier2Tests } = require('./tier2_boundary_tests');
 const { runTier3Tests } = require('./tier3_cross_feature_tests');
 const { runTier4Tests } = require('./tier4_real_world_tests');
 const { runTier5Tests } = require('./tier5_adversarial_tests');
+const { runReleaseRegressionTests } = require('./release_regression_tests');
+const { runAuditRegressionTests } = require('./audit_regression_tests');
+const { assertNoRuntimeErrors, closeTestEnvironments } = require('./harness');
 
 class TestReporter {
     constructor() {
@@ -30,6 +33,7 @@ class TestReporter {
         const testStart = Date.now();
         try {
             await fn();
+            assertNoRuntimeErrors();
             this.passed++;
             const duration = Date.now() - testStart;
             console.log(`  ✓ PASS: ${name} (${duration}ms)`);
@@ -44,6 +48,8 @@ class TestReporter {
                 error: err.message,
                 stack: err.stack
             });
+        } finally {
+            closeTestEnvironments();
         }
     }
 
@@ -62,7 +68,7 @@ class TestReporter {
         console.log(`\n==================================================`);
         console.log(`E2E TEST RUNNER SUMMARY RESULTS`);
         console.log(`==================================================`);
-        console.log(`Total Suites: 5`);
+        console.log(`Total Suites: 7`);
         console.log(`Total Tests:  ${this.totalTests}`);
         console.log(`Passed:       ${this.passed}`);
         console.log(`Failed:       ${this.failed}`);
@@ -95,6 +101,8 @@ async function main() {
         await runTier3Tests(reporter);
         await runTier4Tests(reporter);
         await runTier5Tests(reporter);
+        await runReleaseRegressionTests(reporter);
+        await runAuditRegressionTests(reporter);
     } catch (err) {
         console.error("Critical test execution failure:", err);
         process.exit(1);

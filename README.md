@@ -26,11 +26,11 @@ Easily search for games on Steam, paste store links or App IDs, drag and drop ga
 For the best search experience (and to bypass browser CORS limits on Steam API), run it locally:
 
 1. Clone or download this repository.
-2. Run **`start.bat`** (Windows) or launch a local server on port 8080:
+2. Install a supported Node.js version, then run **`start.bat`** (Windows) or start the included local server:
    ```bash
-   npx http-server ./ -p 8080 --proxy https://store.steampowered.com
+   npm run dev
    ```
-3. Open `http://localhost:8080` in your browser.
+3. Open `http://127.0.0.1:8080` in your browser. The server binds only to loopback and serves only the website assets and two fixed Steam API endpoints; no extra server package is downloaded.
 
 ---
 
@@ -39,6 +39,27 @@ For the best search experience (and to bypass browser CORS limits on Steam API),
 - Plain HTML5, CSS3 & JavaScript (Vanilla JS, no heavy frameworks)
 - [Lucide Icons](https://lucide.dev/)
 - [html2canvas](https://html2canvas.hertzen.com/) for PNG image generation
+
+## Local data and recovery
+
+Autosave and My Library live in this browser profile and website origin. The status beside the Actions panel shows whether the latest changes were saved. If browser storage is blocked or full, use **Save JSON** before closing the tab.
+
+Loading JSON, a share link, a saved list, or Reset All preserves one previous board. Use **Restore previous board** to recover it, including after reload. This is one recovery slot, not a full undo history. JSON is the portable backup between localhost, GitHub Pages and other browsers.
+
+Boards support up to **50 tiers / 1000 games**. JSON imports are limited to **5 MiB** and combined image strings to **3 MiB**. Share links are limited to **500000 encoded characters**; use JSON for larger boards. Third-party Steam search providers can be unavailable; the UI reports errors and supports retrying.
+
+## Quality checks
+
+Requires Node.js 20.19+ on the 20.x line, 22.12+ on the 22.x line, or 24+. A supported Node.js LTS release is recommended:
+
+```bash
+npm ci
+npm run check
+```
+
+The check command validates JavaScript syntax and runs offline DOM integration/regression tests, stress tests, and HTTP tests for the local server. Tests close their browser environments and return failing exit codes.
+
+Current version: **1.0.3**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
 
 ---
 

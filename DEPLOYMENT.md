@@ -1,58 +1,55 @@
-# Deployment & Hosting Guide — CStoRate
+# CStoRate deployment and local development
 
-This guide covers options for running and deploying **CantStop to rate (CStoRate)**.
+CStoRate 1.0.3 is a static HTML/CSS/JavaScript site. Its Node server is a local development helper, not a hosted account backend. Check GitHub Actions and the live site's version footer for deployment status.
 
----
+## Run locally
 
-## 1. Running Locally (Recommended for full Steam API Proxy support)
+Install a supported Node.js release: 20.19+ in the 20.x line, 22.12+ in the 22.x line, or 24+. Prefer a supported LTS line. Run start.bat on Windows or:
 
-Because Steam APIs enforce strict CORS policies for web browsers, running locally with the included local proxy provides the fastest and most reliable search experience.
+```sh
+npm run dev
+```
 
-### Quick Start:
-1. Double-click `start.bat` in the project root directory.
-2. The batch script starts a local Node `http-server` proxying Steam requests on port `8080`.
-3. Open your browser at:
-   ```
-   http://127.0.0.1:8080
-   ```
+Open http://127.0.0.1:8080. The server requires no npm packages to start, listens on 127.0.0.1 only, serves index.html/app.js/style.css, and proxies only Steam storesearch/appdetails endpoints. It provides no file browser. PORT can select another local port, for example `$env:PORT=8081` in PowerShell before running npm run dev.
 
----
+## Verify before deployment
 
-## 2. Deploying to GitHub Pages (Static Hosting)
+```sh
+npm ci
+npm run check
+npm audit
+```
 
-CStoRate is a pure static web app (HTML, CSS, JavaScript) and can be hosted directly on GitHub Pages for free.
+Checks cover syntax, offline DOM integration/regression tests, stress cases and an isolated HTTP server suite. GitHub Actions runs npm ci and npm run check for main and pull requests. Inspect PNG downloads manually in the target browser; DOM tests mock html2canvas.
 
-### Steps:
-1. Push the code to your GitHub repository:
-   ```bash
-   git init
-   git add .
-   git commit -m "Release CStoRate v1.0.0"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/CStoRate.git
-   git push -u origin main
-   ```
-2. Go to **Repository Settings** -> **Pages**.
-3. Under **Build and deployment**, select **Source:** `Deploy from a branch` -> `main` / `/ (root)`.
-4. Click **Save**. Your site will be live at `https://YOUR_USERNAME.github.io/CStoRate/`.
+## GitHub Pages
 
-> **Note on Steam Search on Public Static Hosts:**  
-> When hosted on GitHub Pages, the application automatically falls back to public high-speed CORS proxies (`CodeTabs`, `AllOrigins`, `ThingProxy`). Search and App ID fetching will continue to work seamlessly!
+Publish the three site assets from the repository main branch/root using Repository Settings -> Pages -> Deploy from a branch, or an equivalent static workflow. Review changes and commit/push through the repository usual process. The Node dev server does not run on GitHub Pages. Do not upload CStoRate.rar, node_modules, local backups or private metadata.
 
----
+GitHub Pages and localhost have different browser origins, so localStorage does not transfer. Download Save JSON locally and import it on the published site if needed.
 
-## 3. Deploying to Vercel or Netlify
+## Steam requests on public hosts
 
-### Netlify / Vercel:
-1. Connect your GitHub repository to Vercel or Netlify.
-2. Build Settings:
-   - **Build Command:** *(leave empty)*
-   - **Publish Directory:** `./` (or root)
-3. Deploy!
+Steam does not normally allow direct cross-origin browser requests to these APIs. On localhost the app first tries the included same-origin proxy. On public static hosts it uses Jina, then AllOrigins, with cancellation, a 6.5-second timeout per candidate, bounded caches and response schema checks. Providers can fail or rate-limit; errors are visible and retryable, and availability is not guaranteed.
 
----
+For an owned proxy, deploy the backend separately and add this opt-in setting in index.html:
 
-## 🔒 Security & CORS Notes
-- The application relies on client-side state stored in `localStorage`.
-- All user inputs are sanitized against XSS.
-- PNG export operates with `useCORS: true` enabled for cross-origin Steam header images.
+```html
+<meta name="steam-proxy" content="/steam-api/">
+```
+
+The app then requests /steam-api/storesearch/ and /steam-api/appdetails/ on the same origin before external fallbacks. The prefix must be an absolute same-origin path ending in a slash. The hosting backend must implement those routes and enforce fixed Steam destinations, valid queries, response limits and timeouts. The bundled development server handles /api/ routes; it is not a public production server. No owned public proxy was deployed during the audit.
+
+## Other static hosts
+
+Vercel/Netlify or another static host can serve the three site assets without a build step. If publishing the repository root, exclude archives and development files or use a dedicated static output directory. Configure an owned Steam proxy separately if needed.
+
+## Browser security and persistence
+
+Executable CDN dependencies remain version-pinned with Subresource Integrity. HTML supplies a meta Content Security Policy. Hosts with response-header support can additionally supply CSP headers and frame-ancestors; GitHub Pages does not offer arbitrary response-header configuration.
+
+JSON files are checked before reading and parsing; share fragments have a pre-decode limit; imported/shared/persisted boards pass the common validator. Image URLs allow bounded raster data images and browser-requested web images; permitted image hosts receive browser image requests. CORS governs which external images can be rendered into a PNG.
+
+Browser storage may be disabled or full. Watch the saved-status indicator and use Save JSON as a portable backup. One previous board is retained during replacement/reset when storage permits.
+
+See [AUDIT_REPORT.md](AUDIT_REPORT.md) for verified results and remaining limits.

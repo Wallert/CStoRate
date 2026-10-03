@@ -532,8 +532,8 @@ async function runTier1Tests(reporter) {
         
         const actionControls = helpers.getDocument().querySelectorAll('.tier-row-actions');
         const boardControls = helpers.getDocument().querySelector('.board-builder-controls');
-        reporter.assert(actionControls[0].style.display === 'flex', "Tier row actions display restored");
-        reporter.assert(boardControls.style.display === 'flex', "Board builder controls display restored");
+        reporter.assert(actionControls[0].style.display === '', "Tier row actions display restored");
+        reporter.assert(boardControls.style.display === '', "Board builder controls display restored");
     });
 
     await reporter.test("T1_PNG_05: Download anchor created with sanitized list title filename", async () => {

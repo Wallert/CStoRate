@@ -3,7 +3,7 @@
  * Written by Challenger 2
  */
 
-const { createTestEnvironment } = require('./harness.js');
+const { createTestEnvironment, assertNoRuntimeErrors, closeTestEnvironments } = require('./harness.js');
 
 async function runTier5StressSuite() {
     const results = [];
@@ -40,6 +40,7 @@ async function runTier5StressSuite() {
         });
 
         helpers.importJsonFile(sampleJson);
+        await new Promise(resolve => setTimeout(resolve, 0));
         if (app.state.listTitle !== "Mutation Test List" || app.state.pool.length !== 1) {
             throw new Error(`Step 1 (Import) failed: listTitle="${app.state.listTitle}", pool.len=${app.state.pool.length}`);
         }
@@ -146,9 +147,9 @@ async function runTier5StressSuite() {
 
             // Save to library and check rendered cards
             helpers.click('#btn-save');
-            const savedCards = helpers.getDocument().querySelectorAll('.library-item-title');
+            const savedCards = helpers.getDocument().querySelectorAll('.saved-title');
             savedCards.forEach(card => {
-                if (card.innerHTML.includes('<script>') || card.innerHTML.includes('<svg') || card.innerHTML.includes('<iframe')) {
+                if (card.querySelector('script, svg, iframe, img, a')) {
                     throw new Error("XSS unescaped in library item title DOM");
                 }
             });
@@ -156,8 +157,8 @@ async function runTier5StressSuite() {
             // Inject into Tier Label
             app.state.tiers[0].label = payload;
             app.renderBoard();
-            const tierLabelEl = helpers.getDocument().querySelector(`.tier-label[data-tier-id="${app.state.tiers[0].id}"]`);
-            if (tierLabelEl && (tierLabelEl.innerHTML.includes('<script>') || tierLabelEl.innerHTML.includes('<iframe'))) {
+            const tierLabelEl = helpers.getDocument().querySelector('.tier-label-banner');
+            if (tierLabelEl && tierLabelEl.querySelector('script, svg, iframe, img, a')) {
                 throw new Error("XSS unescaped in tier label DOM");
             }
 
@@ -167,7 +168,7 @@ async function runTier5StressSuite() {
             if (!gameCard) throw new Error("Game card not created");
 
             // Check if DOM contains unescaped HTML elements
-            if (gameCard.innerHTML.includes('<script>') || gameCard.innerHTML.includes('<iframe')) {
+            if (gameCard.querySelector('script, iframe')) {
                 throw new Error("XSS unescaped in game card DOM");
             }
 
@@ -179,10 +180,11 @@ async function runTier5StressSuite() {
                 pool: [{ id: `xss-json-pool-${i}`, name: payload, image: payload }]
             });
             helpers.importJsonFile(xssJson);
+            await new Promise(resolve => setTimeout(resolve, 0));
             
-            // Check body innerHTML for active script or iframe tags injected raw
-            const bodyHtml = helpers.getDocument().body.innerHTML;
-            if (bodyHtml.includes('<script>alert') || bodyHtml.includes('<iframe src=javascript')) {
+            // Check for actual executable DOM nodes, not escaped text inside attributes.
+            const executablePayload = helpers.getDocument().querySelector('script:not([src]), iframe[src^="javascript:"]');
+            if (executablePayload) {
                 throw new Error("Raw executable script/iframe found in DOM!");
             }
 
@@ -242,11 +244,15 @@ async function runTier5StressSuite() {
     const total = results.length;
     const passedCount = results.filter(r => r.passed).length;
     console.log(`\nTier 5 Stress Verification Total: ${passedCount}/${total} Passed`);
+    assertNoRuntimeErrors();
+    closeTestEnvironments();
     return passedCount === total;
 }
 
 if (require.main === module) {
-    runTier5StressSuite();
+    runTier5StressSuite().then(success => { process.exitCode = success ? 0 : 1; })
+        .catch(error => { console.error(error); process.exitCode = 1; })
+        .finally(closeTestEnvironments);
 }
 
 module.exports = { runTier5StressSuite };

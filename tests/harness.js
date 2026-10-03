@@ -5,6 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 
+const environments = new Set();
 let JSDOM;
 try {
     JSDOM = require('jsdom').JSDOM;
@@ -19,7 +20,7 @@ const appJsPath = path.join(__dirname, '../app.js');
 const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 const appJsContent = fs.readFileSync(appJsPath, 'utf8');
 
-function createTestEnvironment(initialLocalStorage = {}) {
+function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false } = {}) {
     if (!JSDOM) {
         throw new Error("JSDOM module is not installed. Please run: npm install jsdom --save-dev");
     }
@@ -43,12 +44,22 @@ function createTestEnvironment(initialLocalStorage = {}) {
     // Instantiate JSDOM
     const dom = new JSDOM(cleanHtmlContent, {
         url: 'http://localhost:3000/',
-        runScripts: 'dangerously',
-        resources: 'usable'
+        runScripts: 'outside-only',
+        pretendToBeVisual: true
     });
+    environments.add(dom);
 
     const { window } = dom;
     const { document } = window;
+    document.elementFromPoint = () => null;
+    window.scrollBy = () => {};
+    const runtimeErrors = [];
+    window.addEventListener('error', event => runtimeErrors.push(event.error || new Error(event.message)));
+    dom._runtimeErrors = runtimeErrors;
+    const anchorClick = window.HTMLAnchorElement.prototype.click;
+    window.HTMLAnchorElement.prototype.click = function () {
+        if (!this.hasAttribute('download')) anchorClick.call(this);
+    };
 
     // Attach mock LocalStorage
     Object.defineProperty(window, 'localStorage', {
@@ -150,7 +161,8 @@ function createTestEnvironment(initialLocalStorage = {}) {
     // Mock FileReader for JSON import tests
     class MockFileReader {
         readAsText(file) {
-            setTimeout(() => {
+            window._fileReads = (window._fileReads || 0) + 1;
+            this.timer = window.setTimeout(() => {
                 if (file._triggerError) {
                     if (this.onerror) this.onerror(new Error("File read error"));
                 } else if (this.onload) {
@@ -158,6 +170,7 @@ function createTestEnvironment(initialLocalStorage = {}) {
                 }
             }, 0);
         }
+        abort() { window.clearTimeout(this.timer); }
     }
     window.FileReader = MockFileReader;
 
@@ -165,7 +178,9 @@ function createTestEnvironment(initialLocalStorage = {}) {
     try {
         window.eval(appJsContent);
     } catch (e) {
-        console.error("Failed to execute app.js in harness context:", e);
+        dom.window.close();
+        environments.delete(dom);
+        throw e;
     }
 
     // Dispatch DOMContentLoaded
@@ -174,6 +189,12 @@ function createTestEnvironment(initialLocalStorage = {}) {
     document.dispatchEvent(event);
 
     const app = window.app;
+    if (!app || document.getElementById('fatal-app-error')) throw new Error('Application initialization failed');
+    if (!manualConfirm) {
+        app.showConfirmModal = (title, message, onConfirm) => {
+            if (window.confirm(message)) onConfirm?.();
+        };
+    }
 
     // Test Helpers
     const helpers = {
@@ -239,7 +260,7 @@ function createTestEnvironment(initialLocalStorage = {}) {
 
         // File Import simulation
         importJsonFile: (jsonContent) => {
-            const file = { content: jsonContent };
+            const file = { content: jsonContent, size: Buffer.byteLength(jsonContent) };
             const event = { target: { files: [file] } };
             app.importJson(event);
         },
@@ -263,4 +284,15 @@ function createTestEnvironment(initialLocalStorage = {}) {
     return { dom, window, document, app, helpers };
 }
 
-module.exports = { createTestEnvironment };
+function assertNoRuntimeErrors() {
+    for (const dom of environments) {
+        if (dom._runtimeErrors.length) throw dom._runtimeErrors[0];
+    }
+}
+
+function closeTestEnvironments() {
+    for (const dom of environments) dom.window.close();
+    environments.clear();
+}
+
+module.exports = { createTestEnvironment, assertNoRuntimeErrors, closeTestEnvironments };

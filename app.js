@@ -1,18 +1,37 @@
 /**
  * Steam Tier Master - Application Controller
  */
+const BOARD_LIMITS = Object.freeze({ tiers: 50, games: 1000, jsonBytes: 5 * 1024 * 1024, shareChars: 500000 });
+const DEFAULT_TITLE = 'My Ultimate Gaming Tier List';
 
+function allocateId(value, seen, prefix) {
+    const raw = String(value ?? '').trim();
+    const base = /^[A-Za-z0-9_-]{1,100}$/.test(raw) ? raw : prefix;
+    let id = base;
+    let suffix = 1;
+    while (seen.has(id)) {
+        const tail = `_dup_${suffix++}`;
+        id = base.slice(0, 100 - tail.length) + tail;
+    }
+    seen.add(id);
+    return id;
+}
 
+function tierTextColor(color) {
+    let hex = color.replace('#', '');
+    if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+    const rgb = hex.match(/../g).map(c => parseInt(c, 16) / 255)
+        .map(c => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    const luminance = rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+    return luminance > 0.179 ? '#05060b' : '#ffffff';
+}
 
-
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+function sanitizeImageUrl(value) {
+    const image = value ? String(value).trim() : '';
+    if (!image) return '';
+    const safeDataImage = /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(image) && image.length <= 2000000;
+    const safeWebImage = /^(https?:\/\/|\/)/i.test(image) && image.length <= 2048;
+    return safeDataImage || safeWebImage ? image : '';
 }
 
 class TierListApp {
@@ -42,14 +61,106 @@ class TierListApp {
         // Search debounce & AbortController
         this.searchTimeout = null;
         this.activeSearchAbortController = null;
+        this.activeDetailsAbortController = null;
         this.confirmCallback = null;
         this.autoSaveInterval = null;
+        this.searchCache = new Map();
+        this.detailsCache = new Map();
+        this.activeModal = null;
+        this.lastFocusedElement = null;
 
         this.init();
     }
 
     markDirty() {
         this.isDirty = true;
+        this.updateSaveStatus('Unsaved changes');
+    }
+
+    updateSaveStatus(message, failed = false) {
+        const status = document.getElementById('save-status');
+        if (!status) return;
+        status.textContent = message;
+        status.classList.toggle('save-error', failed);
+    }
+
+    boardSnapshot() {
+        return {
+            id: this.state.id,
+            listTitle: this.state.listTitle.trim() || DEFAULT_TITLE,
+            tiers: this.state.tiers, pool: this.state.pool,
+            cardStyle: this.state.cardStyle, cardSize: this.state.cardSize
+        };
+    }
+
+    cancelPendingWork() {
+        clearTimeout(this.searchTimeout);
+        this.activeSearchAbortController?.abort();
+        this.activeDetailsAbortController?.abort();
+        this.activeDetailsAbortController = null;
+        if (this.dom.steamIdInput) this.dom.steamIdInput.disabled = false;
+        if (this.dom.btnAddById) this.dom.btnAddById.disabled = false;
+        this.activeImportReader?.abort?.();
+        this.activeImportReader = null;
+        this.cancelTouchDrag?.();
+        this.cancelMouseDrag?.();
+        if (this.dom.searchDropdown) this.dom.searchDropdown.style.display = 'none';
+        if (this.dom.searchSpinner) this.dom.searchSpinner.style.display = 'none';
+        this.dom.steamSearch?.setAttribute('aria-expanded', 'false');
+        this.dom.steamSearch?.removeAttribute('aria-activedescendant');
+    }
+
+    preservePreviousBoard() {
+        const snapshot = JSON.stringify(this.boardSnapshot());
+        try {
+            localStorage.setItem('steam_tier_master_recovery', snapshot);
+            this.updateRecoveryButton();
+            return true;
+        } catch (error) {
+            this.showToast('Cannot back up the current board. Download Save JSON before replacing it.', 'error');
+            return false;
+        }
+    }
+
+    updateRecoveryButton() {
+        const button = document.getElementById('btn-restore-board');
+        if (!button) return;
+        try { button.hidden = !localStorage.getItem('steam_tier_master_recovery'); }
+        catch (error) { button.hidden = true; }
+    }
+
+    restorePreviousBoard() {
+        try {
+            const raw = localStorage.getItem('steam_tier_master_recovery');
+            if (!raw || raw.length > BOARD_LIMITS.jsonBytes) throw new Error('No valid previous board');
+            const config = JSON.parse(raw);
+            const sanitized = this.validateAndSanitizeImport({ ...config, title: config.listTitle });
+            if (!this.preservePreviousBoard()) return;
+            this.applyBoard(sanitized, config.id || null);
+            this.showToast('Previous board restored. You can switch back with the same button.', 'success');
+        } catch (error) {
+            this.showToast('Could not restore the previous board', 'error');
+        }
+    }
+
+    applyBoard(config, id = null) {
+        this.cancelPendingWork();
+        if (this.activeModal) this.closeModal(this.activeModal);
+        this.state.id = id;
+        this.state.listTitle = config.title;
+        this.state.tiers = config.tiers;
+        this.state.pool = config.pool;
+        this.state.cardStyle = config.cardStyle;
+        this.state.cardSize = config.cardSize;
+        this.dom.listTitleInput.value = config.title;
+        this.dom.boardTitleDisplay.textContent = config.title.toUpperCase();
+        this.updateToggleButtonsActiveState();
+        this.applyCardStyleClasses();
+        this.applyCardSizeClasses();
+        this.renderBoard();
+        this.renderPool();
+        this.markDirty();
+        this.saveAutoSave();
     }
 
     refreshIcons() {
@@ -71,6 +182,16 @@ class TierListApp {
             // Populate DOM elements and bindings
             this.cacheDomElements();
             this.bindEvents();
+            document.getElementById('btn-restore-board')?.addEventListener('click', () => this.restorePreviousBoard());
+            this.updateRecoveryButton();
+            window.addEventListener('pagehide', () => { if (this.isDirty) this.saveAutoSave(); });
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    if (this.isDirty) this.saveAutoSave();
+                    this.cancelMouseDrag?.();
+                    this.cancelTouchDrag?.();
+                }
+            });
             
             // Load autosave if it exists
             this.loadAutoSave();
@@ -102,8 +223,20 @@ class TierListApp {
                 }
             }, 2000);
         } catch (err) {
-            // Ensure app initialization does not throw uncaught error
+            console.error("Failed to initialize TierListApp:", err);
+            this.showFatalError("The saved board could not be loaded. Reset local data from your browser settings and reload the page.");
         }
+    }
+
+    showFatalError(message) {
+        const host = document.querySelector('.app-main') || document.body;
+        if (!host || document.getElementById('fatal-app-error')) return;
+        const error = document.createElement('div');
+        error.id = 'fatal-app-error';
+        error.className = 'fatal-app-error';
+        error.setAttribute('role', 'alert');
+        error.textContent = message;
+        host.prepend(error);
     }
 
     cacheDomElements() {
@@ -176,6 +309,20 @@ class TierListApp {
                     const targetTab = tab.dataset.tab;
                     this.switchTab(targetTab);
                 });
+                tab.addEventListener('keydown', (event) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                    event.preventDefault();
+                    const tabs = Array.from(this.dom.tabs);
+                    const currentIndex = tabs.indexOf(tab);
+                    let nextIndex = currentIndex;
+                    if (event.key === 'Home') nextIndex = 0;
+                    else if (event.key === 'End') nextIndex = tabs.length - 1;
+                    else if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+                    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+                    const nextTab = tabs[nextIndex];
+                    this.switchTab(nextTab.dataset.tab);
+                    nextTab.focus();
+                });
             });
         }
 
@@ -213,20 +360,19 @@ class TierListApp {
             this.dom.steamSearch.addEventListener('input', (e) => {
                 this.handleSearchInput(e.target.value);
             });
-            this.dom.steamSearch.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && this.dom.searchDropdown) {
-                    this.dom.searchDropdown.style.display = 'none';
-                }
-            });
+            this.dom.steamSearch.addEventListener('keydown', event => this.handleSearchKey(event));
         }
 
         // Global Keydown for Escape key (close modals and search dropdown)
         document.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab' && this.activeModal) {
+                this.trapModalFocus(e);
+            }
             if (e.key === 'Escape') {
-                if (this.dom.searchDropdown) this.dom.searchDropdown.style.display = 'none';
-                this.closeMobileModal();
-                this.closeTierEditModal();
-                this.closeConfirmModal();
+                this.dismissSearch();
+                if (this.activeModal === this.dom.mobileMoveModal) this.closeMobileModal();
+                else if (this.activeModal === this.dom.tierEditModal) this.closeTierEditModal();
+                else if (this.activeModal === this.dom.confirmModal) this.closeConfirmModal();
             }
         });
 
@@ -234,7 +380,7 @@ class TierListApp {
         document.addEventListener('click', (e) => {
             if (this.dom.steamSearch && this.dom.searchDropdown) {
                 if (!this.dom.steamSearch.contains(e.target) && !this.dom.searchDropdown.contains(e.target)) {
-                    this.dom.searchDropdown.style.display = 'none';
+                    this.dismissSearch();
                 }
             }
         });
@@ -274,6 +420,28 @@ class TierListApp {
                 edgeScrollFrameId = null;
             }
         };
+
+        this.cancelMouseDrag = () => {
+            stopEdgeScroll();
+            const drag = this._customDrag;
+            drag?.mirror?.remove();
+            if (drag?.card) {
+                drag.card.style.opacity = '1';
+                delete drag.card.dataset.isDragging;
+                if (drag.started) {
+                    drag.card.dataset.justDragged = 'true';
+                    setTimeout(() => { delete drag.card.dataset.justDragged; }, 150);
+                }
+            }
+            document.body.style.userSelect = '';
+            document.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+            this._customDrag = { active: false, started: false };
+            this.draggedGameId = null;
+        };
+        window.addEventListener('blur', () => { this.cancelMouseDrag(); this.cancelTouchDrag?.(); });
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') { this.cancelMouseDrag(); this.cancelTouchDrag?.(); }
+        });
 
         const updateEdgeScroll = (clientY) => {
             const topZone = 140;
@@ -354,7 +522,7 @@ class TierListApp {
             // Restore card
             if (cd.card) {
                 cd.card.style.opacity = '1';
-                cd.card.dataset.justDragged = 'true';
+                if (cd.started) cd.card.dataset.justDragged = 'true';
                 const cardRef = cd.card;
                 setTimeout(() => { delete cardRef.dataset.isDragging; delete cardRef.dataset.justDragged; }, 150);
             }
@@ -377,11 +545,7 @@ class TierListApp {
                         if (targetCard && targetCard !== cd.card) {
                             targetGameId = targetCard.dataset.gameId;
                             const rect = targetCard.getBoundingClientRect();
-                            if (this.state.cardStyle === 'vertical') {
-                                if (e.clientY > rect.top + rect.height / 2) insertAfter = true;
-                            } else {
-                                if (e.clientX > rect.left + rect.width / 2) insertAfter = true;
-                            }
+                            insertAfter = e.clientX > rect.left + rect.width / 2;
                         }
 
                         if (destTierId === 'trash') {
@@ -513,24 +677,90 @@ class TierListApp {
         }
     }
 
-    showConfirmModal(title, message, onConfirm) {
-        if (confirm(message)) {
-            onConfirm();
-        }
-    }
-
-    closeConfirmModal() {
-        if (this.dom.confirmModal) {
-            this.dom.confirmModal.style.display = 'none';
-        }
-        this.confirmCallback = null;
-    }
-
     // ==========================================================================
     // STEAM INTEGRATION & SEARCH
     // ==========================================================================
 
+    async fetchJsonWithTimeout(url, { signal = null, timeoutMs = 6500 } = {}) {
+        const controller = new AbortController();
+        const abortFromParent = () => controller.abort();
+        if (signal) {
+            if (signal.aborted) controller.abort();
+            else signal.addEventListener('abort', abortFromParent, { once: true });
+        }
+
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status || 'error'}`);
+            if (typeof response.text !== 'function') return await response.json();
+
+            const raw = (await response.text()).trim();
+            if (raw.length > BOARD_LIMITS.jsonBytes) throw new Error('Response is too large');
+            try {
+                return JSON.parse(raw);
+            } catch (directParseError) {
+                // Jina Reader wraps non-HTML responses in a short Markdown envelope.
+                const markerIndex = raw.indexOf('Markdown Content:');
+                const payloadText = markerIndex >= 0 ? raw.slice(markerIndex + 'Markdown Content:'.length).trim() : raw;
+                const objectStart = payloadText.indexOf('{');
+                const arrayStart = payloadText.indexOf('[');
+                const starts = [objectStart, arrayStart].filter(index => index >= 0);
+                if (starts.length === 0) throw directParseError;
+                const start = Math.min(...starts);
+                const opening = payloadText[start];
+                const end = payloadText.lastIndexOf(opening === '{' ? '}' : ']');
+                if (end <= start) throw directParseError;
+                return JSON.parse(payloadText.slice(start, end + 1));
+            }
+        } catch (error) {
+            if (controller.signal.aborted && !(signal && signal.aborted)) {
+                throw new Error('Request timed out');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+            if (signal) signal.removeEventListener('abort', abortFromParent);
+        }
+    }
+
+    async fetchSteamJson(steamUrl, signal = null) {
+        const parsedUrl = new URL(steamUrl);
+        if (parsedUrl.hostname !== 'store.steampowered.com') {
+            throw new Error('Unsupported Steam endpoint');
+        }
+
+        const candidates = [];
+        const isLocalHost = ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+        const configuredProxy = document.querySelector('meta[name="steam-proxy"]')?.content;
+        if (configuredProxy && /^\/(?!\/)[A-Za-z0-9/_-]*\/$/.test(configuredProxy)) {
+            candidates.push(`${configuredProxy}${parsedUrl.pathname.replace(/^\/api\//, '')}${parsedUrl.search}`);
+        } else if (isLocalHost) candidates.push(`${parsedUrl.pathname}${parsedUrl.search}`);
+
+        // Jina Reader currently provides a CORS-enabled pass-through for public JSON.
+        candidates.push(`https://r.jina.ai/http://store.steampowered.com${parsedUrl.pathname}${parsedUrl.search}`);
+        candidates.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(steamUrl)}`);
+
+        let lastError = null;
+        for (const url of candidates) {
+            try {
+                const result = await this.fetchJsonWithTimeout(url, { signal, timeoutMs: 6500 });
+                const valid = parsedUrl.pathname.includes('storesearch')
+                    ? Array.isArray(result?.items)
+                    : typeof result?.[parsedUrl.searchParams.get('appids')]?.success === 'boolean';
+                if (!valid) throw new Error('Invalid Steam response');
+                return result;
+            } catch (error) {
+                if (signal && signal.aborted) throw error;
+                lastError = error;
+            }
+        }
+        throw lastError || new Error('Steam service is unavailable');
+    }
+
     handleSearchInput(query) {
+        this.dom.steamSearch?.setAttribute('aria-expanded', 'false');
+        this.dom.steamSearch?.removeAttribute('aria-activedescendant');
         clearTimeout(this.searchTimeout);
         
         if (this.activeSearchAbortController) {
@@ -538,7 +768,7 @@ class TierListApp {
             this.activeSearchAbortController = null;
         }
 
-        if (!query.trim()) {
+        if (query.trim().length < 2) {
             if (this.dom.searchDropdown) this.dom.searchDropdown.style.display = 'none';
             if (this.dom.searchSpinner) this.dom.searchSpinner.style.display = 'none';
             return;
@@ -551,79 +781,32 @@ class TierListApp {
 
         this.searchTimeout = setTimeout(async () => {
             try {
+                const cacheKey = query.trim().toLowerCase();
+                if (this.searchCache.has(cacheKey)) {
+                    this.renderSearchDropdown(this.searchCache.get(cacheKey));
+                    return;
+                }
+
                 const steamSearchUrl = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&l=english&cc=US`;
-                let result = null;
-
-                // Try 1: Local HTTP-Server Proxy
-                try {
-                    const localProxyUrl = `/api/storesearch/?term=${encodeURIComponent(query)}&l=english&cc=US`;
-                    const response = await fetch(localProxyUrl, { signal });
-                    if (response.ok) {
-                        result = await response.json();
-                    }
-                } catch (e) {
-                    if (e.name === 'AbortError') return;
-                }
-
-                // Try 2: CodeTabs high-speed proxy (raw direct JSON)
-                if (!result && !signal.aborted) {
-                    try {
-                        const codeTabsUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(steamSearchUrl)}`;
-                        const response = await fetch(codeTabsUrl, { signal });
-                        if (response.ok) {
-                            result = await response.json();
-                        }
-                    } catch (e) {
-                        if (e.name === 'AbortError') return;
-                    }
-                }
-
-                // Try 3: AllOrigins fallback
-                if (!result && !signal.aborted) {
-                    try {
-                        const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(steamSearchUrl)}`;
-                        const response = await fetch(allOriginsUrl, { signal });
-                        if (response.ok) {
-                            const data = await response.json();
-                            if (data && typeof data.contents === 'string') {
-                                const trimmed = data.contents.trim();
-                                if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-                                    result = JSON.parse(trimmed);
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        if (e.name === 'AbortError') return;
-                    }
-                }
-
-                // Try 4: ThingProxy fallback
-                if (!result && !signal.aborted) {
-                    try {
-                        const thingProxyUrl = `https://thingproxy.freeboard.io/fetch/${steamSearchUrl}`;
-                        const response = await fetch(thingProxyUrl, { signal });
-                        if (response.ok) {
-                            result = await response.json();
-                        }
-                    } catch (e) {
-                        if (e.name === 'AbortError') return;
-                    }
-                }
+                const result = await this.fetchSteamJson(steamSearchUrl, signal);
 
                 if (signal.aborted) return;
 
                 if (result && result.items && result.items.length > 0) {
                     const items = result.items.map(item => ({
                         id: String(item.id),
-                        name: item.name
+                        name: String(item.name || ''),
+                        image: item.tiny_image || item.image || ''
                     }));
+                    this.searchCache.set(cacheKey, items);
+                    if (this.searchCache.size > 100) this.searchCache.delete(this.searchCache.keys().next().value);
                     this.renderSearchDropdown(items);
                 } else {
                     this.searchLocalTemplates(query);
                 }
             } catch (err) {
-                if (err.name === 'AbortError') return;
-                this.searchLocalTemplates(query);
+                if (signal.aborted || err.name === 'AbortError') return;
+                this.renderSearchMessage('Steam search is temporarily unavailable. Try an App ID or retry shortly.', true);
             } finally {
                 if (!signal.aborted && this.dom.searchSpinner) {
                     this.dom.searchSpinner.style.display = 'none';
@@ -633,15 +816,20 @@ class TierListApp {
     }
 
     searchLocalTemplates(query) {
+        this.renderSearchMessage('No games found. Try App ID directly.');
+    }
+
+    renderSearchMessage(message, isError = false) {
         if (this.dom.searchDropdown) {
             const emptyItem = document.createElement('div');
-            emptyItem.className = 'autocomplete-item';
+            emptyItem.className = `autocomplete-item${isError ? ' autocomplete-error' : ''}`;
             const emptySpan = document.createElement('span');
             emptySpan.className = 'game-title';
-            emptySpan.textContent = 'No games found. Try App ID directly.';
+            emptySpan.textContent = message;
             emptyItem.appendChild(emptySpan);
             this.dom.searchDropdown.replaceChildren(emptyItem);
             this.dom.searchDropdown.style.display = 'block';
+            this.dom.steamSearch?.setAttribute('aria-expanded', 'true');
         }
     }
 
@@ -650,14 +838,17 @@ class TierListApp {
         this.dom.searchDropdown.replaceChildren();
         
         // Show up to 8 results
-        items.slice(0, 8).forEach(item => {
-            const el = document.createElement('div');
+        this.searchSelection = -1;
+        items.filter(item => /^\d{1,10}$/.test(String(item.id))).slice(0, 8).forEach((item, index) => {
+            const el = document.createElement('button');
+            el.type = 'button';
             el.className = 'autocomplete-item';
+            el.setAttribute('role', 'option');
+            el.id = `search-option-${index}`;
+            el.tabIndex = -1;
+            el.setAttribute('aria-selected', 'false');
             
-            let imageUrl = item.image || `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`;
-            if (imageUrl && !/^(https?:\/\/|data:image\/|\/)/i.test(imageUrl)) {
-                imageUrl = '';
-            }
+            const imageUrl = sanitizeImageUrl(item.image || `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/header.jpg`);
 
             const img = document.createElement('img');
             img.src = imageUrl;
@@ -679,12 +870,42 @@ class TierListApp {
                 this.addGameToPool(String(item.id), item.name, imageUrl);
                 if (this.dom.steamSearch) this.dom.steamSearch.value = '';
                 this.dom.searchDropdown.style.display = 'none';
+                this.dismissSearch();
             });
 
             this.dom.searchDropdown.appendChild(el);
         });
 
         this.dom.searchDropdown.style.display = 'block';
+        this.dom.steamSearch?.setAttribute('aria-expanded', 'true');
+    }
+
+    dismissSearch() {
+        clearTimeout(this.searchTimeout);
+        this.activeSearchAbortController?.abort();
+        this.dom.searchDropdown.style.display = 'none';
+        this.dom.searchSpinner.style.display = 'none';
+        this.dom.steamSearch.setAttribute('aria-expanded', 'false');
+        this.dom.steamSearch.removeAttribute('aria-activedescendant');
+    }
+
+    handleSearchKey(event) {
+        if (event.key === 'Escape' || event.key === 'Tab') { this.dismissSearch(); return; }
+        const options = Array.from(this.dom.searchDropdown.querySelectorAll('[role="option"]'));
+        if (!options.length || this.dom.searchDropdown.style.display === 'none') return;
+        if (event.key === 'Enter' && this.searchSelection >= 0) {
+            event.preventDefault();
+            options[this.searchSelection]?.click();
+            return;
+        }
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const current = this.searchSelection ?? -1;
+        this.searchSelection = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
+            : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        options.forEach((option, index) => option.setAttribute('aria-selected', String(index === this.searchSelection)));
+        this.dom.steamSearch.setAttribute('aria-activedescendant', options[this.searchSelection].id);
+        options[this.searchSelection].scrollIntoView?.({ block: 'nearest' });
     }
 
     async handleAddByLinkOrId() {
@@ -701,7 +922,7 @@ class TierListApp {
             appId = input;
         }
 
-        if (!appId) {
+        if (!appId || !/^\d{1,10}$/.test(appId)) {
             this.showToast("Could not parse Steam URL or App ID", "error");
             return;
         }
@@ -710,79 +931,53 @@ class TierListApp {
         if (this.dom.btnAddById) this.dom.btnAddById.disabled = true;
         this.showToast("Fetching game metadata from Steam...", "success");
 
+        if (this.activeDetailsAbortController) this.activeDetailsAbortController.abort();
+        this.activeDetailsAbortController = new AbortController();
+        const signal = this.activeDetailsAbortController.signal;
+
         try {
+            if (this.detailsCache.has(appId)) {
+                const cached = this.detailsCache.get(appId);
+                this.addGameToPool(appId, cached.name, cached.image);
+                this.dom.steamIdInput.value = '';
+                return;
+            }
+
             const detailsUrl = `https://store.steampowered.com/api/appdetails/?appids=${appId}`;
-            let details = null;
-
-            // Try 1: Local HTTP-Server Proxy
-            try {
-                const localProxyUrl = `/api/appdetails/?appids=${appId}`;
-                const response = await fetch(localProxyUrl);
-                if (response.ok) {
-                    details = await response.json();
-                }
-            } catch (e) {
-                // Ignore local proxy error
-            }
-
-            // Try 2: CodeTabs Proxy (Raw JSON)
-            if (!details) {
-                try {
-                    const codeTabsUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(detailsUrl)}`;
-                    const response = await fetch(codeTabsUrl);
-                    if (response.ok) {
-                        details = await response.json();
-                    }
-                } catch (e) {
-                    // Ignore proxy fallback error
-                }
-            }
-
-            // Try 3: AllOrigins fallback
-            if (!details) {
-                try {
-                    const allOriginsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(detailsUrl)}`;
-                    const response = await fetch(allOriginsUrl);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data && typeof data.contents === 'string') {
-                            const trimmed = data.contents.trim();
-                            if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-                                details = JSON.parse(trimmed);
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // Ignore proxy fallback error
-                }
-            }
+            const details = await this.fetchSteamJson(detailsUrl, signal);
+            if (signal.aborted) return;
 
             // Process details
             if (details && details[appId] && details[appId].success) {
                 const gameInfo = details[appId].data;
-                const name = gameInfo.name;
+                if (!gameInfo || typeof gameInfo.name !== 'string') throw new Error('Invalid game metadata');
+                const name = String(gameInfo.name || `Steam App #${appId}`);
                 const image = gameInfo.header_image || `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`;
+                this.detailsCache.set(appId, { name, image });
+                if (this.detailsCache.size > 100) this.detailsCache.delete(this.detailsCache.keys().next().value);
                 this.addGameToPool(String(appId), name, image);
                 this.dom.steamIdInput.value = '';
             } else {
-                const guessedName = `Steam App #${appId}`;
-                const imageUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`;
-                this.addGameToPool(String(appId), guessedName, imageUrl);
-                this.dom.steamIdInput.value = '';
-                this.showToast("Loaded with fallback metadata", "success");
+                this.showToast("Steam app was not found", "error");
             }
         } catch (err) {
-            const guessedName = `Steam App #${appId}`;
-            const imageUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`;
-            this.addGameToPool(String(appId), guessedName, imageUrl);
-            this.dom.steamIdInput.value = '';
+            if (!signal.aborted) {
+                this.showToast("Could not reach Steam. Please retry shortly.", "error");
+            }
         } finally {
-            this.dom.steamIdInput.disabled = false;
-            if (this.dom.btnAddById) this.dom.btnAddById.disabled = false;
+            if (this.activeDetailsAbortController && this.activeDetailsAbortController.signal === signal) {
+                this.dom.steamIdInput.disabled = false;
+                if (this.dom.btnAddById) this.dom.btnAddById.disabled = false;
+                this.activeDetailsAbortController = null;
+            }
         }
     }
 
     addGameToPool(id, name, image) {
+        if (this.state.pool.length + this.state.tiers.reduce((n, t) => n + t.games.length, 0) >= BOARD_LIMITS.games) {
+            this.showToast('A maximum of 1000 games is supported', 'error');
+            return;
+        }
         const stringId = String(id);
         const existsInPool = this.state.pool.some(g => String(g.id) === stringId);
         const existsInTiers = this.state.tiers.some(t => t.games.some(g => String(g.id) === stringId));
@@ -792,12 +987,10 @@ class TierListApp {
             return;
         }
 
-        let cleanImage = image ? String(image).trim() : '';
-        if (cleanImage && !/^(https?:\/\/|data:image\/|\/)/i.test(cleanImage)) {
-            cleanImage = '';
-        }
+        const cleanImage = sanitizeImageUrl(image);
 
-        const newGame = { id: stringId, name, image: cleanImage, source: "steam" };
+        const cleanName = String(name || `Steam App #${stringId}`).trim().slice(0, 200);
+        const newGame = { id: stringId, name: cleanName, image: cleanImage, source: "steam" };
         this.state.pool.push(newGame);
         this.renderPool();
         this.saveAutoSave();
@@ -818,13 +1011,16 @@ class TierListApp {
             row.dataset.tierId = tier.id;
 
             // Tier Banner
-            const banner = document.createElement('div');
+            const banner = document.createElement('button');
+            banner.type = 'button';
             banner.className = 'tier-label-banner';
             banner.style.backgroundColor = tier.color;
+            banner.style.color = tierTextColor(tier.color);
             const labelSpan = document.createElement('span');
             labelSpan.textContent = tier.label;
             banner.appendChild(labelSpan);
             banner.title = "Click to edit row label or color";
+            banner.setAttribute('aria-label', `Edit tier ${tier.label}`);
             banner.addEventListener('click', () => this.openTierEditModal(tier.id));
 
             // Content Dropzone
@@ -852,6 +1048,7 @@ class TierListApp {
             iconUp.setAttribute('data-lucide', 'chevron-up');
             btnUp.appendChild(iconUp);
             btnUp.title = "Move Row Up";
+            btnUp.setAttribute('aria-label', `Move ${tier.label} tier up`);
             btnUp.disabled = index === 0;
             btnUp.addEventListener('click', () => this.moveRowOrder(index, -1));
 
@@ -861,6 +1058,7 @@ class TierListApp {
             iconDown.setAttribute('data-lucide', 'chevron-down');
             btnDown.appendChild(iconDown);
             btnDown.title = "Move Row Down";
+            btnDown.setAttribute('aria-label', `Move ${tier.label} tier down`);
             btnDown.disabled = index === this.state.tiers.length - 1;
             btnDown.addEventListener('click', () => this.moveRowOrder(index, 1));
 
@@ -870,6 +1068,7 @@ class TierListApp {
             iconSettings.setAttribute('data-lucide', 'sliders-horizontal');
             btnSettings.appendChild(iconSettings);
             btnSettings.title = "Settings";
+            btnSettings.setAttribute('aria-label', `Edit ${tier.label} tier settings`);
             btnSettings.addEventListener('click', () => this.openTierEditModal(tier.id));
 
             const btnDelete = document.createElement('button');
@@ -878,6 +1077,7 @@ class TierListApp {
             iconDelete.setAttribute('data-lucide', 'x');
             btnDelete.appendChild(iconDelete);
             btnDelete.title = "Delete Row (Games will return to pool)";
+            btnDelete.setAttribute('aria-label', `Delete ${tier.label} tier`);
             btnDelete.addEventListener('click', () => this.deleteTierRow(tier.id));
 
             controls.appendChild(btnUp);
@@ -935,10 +1135,11 @@ class TierListApp {
         card.setAttribute('aria-label', `Game card: ${game.name}`);
 
         card.addEventListener('keydown', (e) => {
+            if (e.target.closest('a')) return;
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 this.activeMobileGame = game;
-                this.draggedSourceId = sourceId;
+                this.draggedSourceId = card.dataset.sourceId || sourceId;
                 this.openMobileModal(game);
             }
         });
@@ -1047,11 +1248,16 @@ class TierListApp {
         let touchStartX = 0;
         let touchStartY = 0;
         let touchDragged = false;
+        let touchId = null;
         let mirrorEl = null;
 
         card.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 1) return;
+            if (e.target.closest('a')) return;
+            if (e.touches.length !== 1) { cancelTouch(); return; }
+            this.cancelTouchDrag?.();
+            this.cancelTouchDrag = cancelTouch;
             const touch = e.touches[0];
+            touchId = touch.identifier ?? 0;
             touchStartX = touch.clientX;
             touchStartY = touch.clientY;
             touchDragged = false;
@@ -1060,8 +1266,10 @@ class TierListApp {
         }, { passive: true });
 
         card.addEventListener('touchmove', (e) => {
-            if (!touchStartX && !touchStartY) return;
-            const touch = e.touches[0];
+            if (touchId === null) return;
+            if (e.touches.length !== 1) { cancelTouch(); return; }
+            const touch = Array.from(e.touches).find(t => (t.identifier ?? 0) === touchId);
+            if (!touch) return;
             const dx = touch.clientX - touchStartX;
             const dy = touch.clientY - touchStartY;
 
@@ -1098,7 +1306,22 @@ class TierListApp {
             }
         }, { passive: false });
 
+        const cancelTouch = () => {
+            mirrorEl?.remove();
+            mirrorEl = null;
+            card.style.opacity = '1';
+            document.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+            if (touchDragged) {
+                card.dataset.touchDragged = 'true';
+                setTimeout(() => { delete card.dataset.touchDragged; }, 150);
+            }
+            touchId = null;
+            touchDragged = false;
+        };
+
         const handleTouchEnd = (e) => {
+            const ended = Array.from(e.changedTouches || []).find(t => (t.identifier ?? 0) === touchId);
+            if (!ended) return;
             if (mirrorEl) {
                 mirrorEl.remove();
                 mirrorEl = null;
@@ -1107,7 +1330,7 @@ class TierListApp {
             document.querySelectorAll('.droppable-row').forEach(zone => zone.classList.remove('drag-over'));
 
             if (touchDragged) {
-                const touch = e.changedTouches ? e.changedTouches[0] : null;
+                const touch = ended;
                 if (touch) {
                     const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
                     if (elemBelow) {
@@ -1121,13 +1344,7 @@ class TierListApp {
                             if (targetCard) {
                                 targetGameId = targetCard.dataset.gameId;
                                 const rect = targetCard.getBoundingClientRect();
-                                if (this.state.cardStyle === 'vertical') {
-                                    const midY = rect.top + rect.height / 2;
-                                    if (touch.clientY > midY) insertAfter = true;
-                                } else {
-                                    const midX = rect.left + rect.width / 2;
-                                    if (touch.clientX > midX) insertAfter = true;
-                                }
+                                insertAfter = touch.clientX > rect.left + rect.width / 2;
                             }
 
                             const currentSourceId = card.dataset.sourceId || sourceId;
@@ -1143,11 +1360,12 @@ class TierListApp {
             }
             touchStartX = 0;
             touchStartY = 0;
+            touchId = null;
             touchDragged = false;
         };
 
         card.addEventListener('touchend', handleTouchEnd);
-        card.addEventListener('touchcancel', handleTouchEnd);
+        card.addEventListener('touchcancel', cancelTouch);
 
         // Click handler triggers mobile quick selection screen ONLY if not dragging
         card.addEventListener('click', (e) => {
@@ -1206,17 +1424,7 @@ class TierListApp {
             if (targetCard) {
                 targetGameId = targetCard.dataset.gameId;
                 const rect = targetCard.getBoundingClientRect();
-                if (this.state.cardStyle === 'vertical') {
-                    const midY = rect.top + rect.height / 2;
-                    if (e.clientY > midY) {
-                        insertAfter = true;
-                    }
-                } else {
-                    const midX = rect.left + rect.width / 2;
-                    if (e.clientX > midX) {
-                        insertAfter = true;
-                    }
-                }
+                insertAfter = e.clientX > rect.left + rect.width / 2;
             }
 
             if (gameId && destTierId) {
@@ -1249,97 +1457,31 @@ class TierListApp {
     }
 
     moveGameToDestination(gameId, sourceId, destId, targetGameId = null, insertAfter = false) {
-        if (targetGameId && targetGameId.toString() === gameId.toString()) return;
+        const source = sourceId === 'pool' ? this.state.pool : this.state.tiers.find(t => t.id === sourceId)?.games;
+        const destination = destId === 'pool' ? this.state.pool : this.state.tiers.find(t => t.id === destId)?.games;
+        if (!source || !destination) return false;
+        const index = source.findIndex(g => String(g.id) === String(gameId));
+        if (index < 0 || String(targetGameId) === String(gameId)) return false;
+        if (targetGameId && !destination.some(g => String(g.id) === String(targetGameId))) return false;
+        if (source === destination && !targetGameId && index === source.length - 1) return false;
+        const game = source.splice(index, 1)[0];
+        let destinationIndex = targetGameId ? destination.findIndex(g => String(g.id) === String(targetGameId)) : destination.length;
+        if (targetGameId && insertAfter) destinationIndex++;
+        destination.splice(destinationIndex, 0, game);
 
-        if (sourceId === destId && !targetGameId) {
-            if (sourceId === 'pool') {
-                const list = this.state.pool;
-                if (list.length > 0 && list[list.length - 1].id.toString() === gameId.toString()) return;
-            } else {
-                const tier = this.state.tiers.find(t => t.id === sourceId);
-                if (tier && tier.games.length > 0 && tier.games[tier.games.length - 1].id.toString() === gameId.toString()) return;
-            }
-        }
-
-        // Retrieve game object
-        let gameObj = null;
-
-        // Remove from source
-        if (sourceId === 'pool') {
-            const index = this.state.pool.findIndex(g => g.id.toString() === gameId.toString());
-            if (index > -1) {
-                gameObj = this.state.pool.splice(index, 1)[0];
-            }
+        const node = document.querySelector(`.game-card[data-game-id="${gameId}"]`);
+        const target = targetGameId ? document.querySelector(`.game-card[data-game-id="${targetGameId}"]`) : null;
+        if (node) {
+            node.dataset.sourceId = destId;
+            if (target) insertAfter ? target.after(node) : target.before(node);
+            else this.appendToDestContainer(node, destId);
         } else {
-            const tier = this.state.tiers.find(t => t.id === sourceId);
-            if (tier) {
-                const index = tier.games.findIndex(g => g.id.toString() === gameId.toString());
-                if (index > -1) {
-                    gameObj = tier.games.splice(index, 1)[0];
-                }
-            }
-        }
-
-        if (!gameObj) return;
-
-        // Insert into destination
-        if (destId === 'pool') {
-            if (targetGameId) {
-                let targetIndex = this.state.pool.findIndex(g => g.id.toString() === targetGameId.toString());
-                if (targetIndex > -1) {
-                    if (insertAfter) targetIndex += 1;
-                    this.state.pool.splice(targetIndex, 0, gameObj);
-                } else {
-                    this.state.pool.push(gameObj);
-                }
-            } else {
-                this.state.pool.push(gameObj);
-            }
-        } else {
-            const tier = this.state.tiers.find(t => t.id === destId);
-            if (tier) {
-                if (targetGameId) {
-                    let targetIndex = tier.games.findIndex(g => g.id.toString() === targetGameId.toString());
-                    if (targetIndex > -1) {
-                        if (insertAfter) targetIndex += 1;
-                        tier.games.splice(targetIndex, 0, gameObj);
-                    } else {
-                        tier.games.push(gameObj);
-                    }
-                } else {
-                    tier.games.push(gameObj);
-                }
-            }
-        }
-
-        // Efficient targeted DOM manipulation instead of full re-render
-        const existingNode = document.querySelector(`.game-card[data-game-id="${gameId}"]`);
-        
-        if (!existingNode) {
             this.renderPool();
             this.renderBoard();
-            return;
         }
-
-        existingNode.dataset.sourceId = destId;
-        
-        if (targetGameId && targetGameId !== gameId) {
-            const targetNode = document.querySelector(`.game-card[data-game-id="${targetGameId}"]`);
-            if (targetNode) {
-                if (insertAfter) {
-                    targetNode.after(existingNode);
-                } else {
-                    targetNode.before(existingNode);
-                }
-            } else {
-                this.appendToDestContainer(existingNode, destId);
-            }
-        } else {
-            this.appendToDestContainer(existingNode, destId);
-        }
-
         this.updatePoolCountDisplay();
         this.saveAutoSave();
+        return true;
     }
 
     deleteGame(gameId, sourceId) {
@@ -1375,10 +1517,16 @@ class TierListApp {
         this.state.tiers[destIndex] = temp;
 
         this.renderBoard();
+        this.markDirty();
+        this.saveAutoSave();
     }
 
     addNewTier() {
-        const uniqueId = `tier-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        if (this.state.tiers.length >= BOARD_LIMITS.tiers) {
+            this.showToast('A maximum of 50 tiers is supported', 'error');
+            return;
+        }
+        const uniqueId = allocateId(`tier-${Date.now()}`, new Set(this.state.tiers.map(t => t.id)), 'tier');
         const newTier = {
             id: uniqueId,
             label: "NEW TIER",
@@ -1387,6 +1535,8 @@ class TierListApp {
         };
         this.state.tiers.push(newTier);
         this.renderBoard();
+        this.markDirty();
+        this.saveAutoSave();
         this.showToast("Added new tier row", "success");
     }
 
@@ -1405,6 +1555,8 @@ class TierListApp {
         
         this.renderBoard();
         this.renderPool();
+        this.markDirty();
+        this.saveAutoSave();
         this.showToast(`Deleted row and returned games to pool`, "success");
     }
 
@@ -1425,11 +1577,11 @@ class TierListApp {
             }
         });
 
-        this.dom.tierEditModal.style.display = 'flex';
+        this.openModal(this.dom.tierEditModal, this.dom.editTierLabel);
     }
 
     closeTierEditModal() {
-        this.dom.tierEditModal.style.display = 'none';
+        this.closeModal(this.dom.tierEditModal);
         this.activeEditTierId = null;
     }
 
@@ -1445,11 +1597,13 @@ class TierListApp {
             return;
         }
 
-        tier.label = label;
+        tier.label = label.slice(0, 30);
         tier.color = color;
 
         this.renderBoard();
         this.closeTierEditModal();
+        this.markDirty();
+        this.saveAutoSave();
         this.showToast("Tier settings updated successfully", "success");
     }
 
@@ -1459,13 +1613,14 @@ class TierListApp {
 
     openMobileModal(game) {
         this.dom.mobileGameName.textContent = game.name;
-        this.dom.mobileTierSelectGrid.innerHTML = '';
+        this.dom.mobileTierSelectGrid.replaceChildren();
 
         // Dynamically build tier selections matching their custom color banners
         this.state.tiers.forEach(tier => {
             const btn = document.createElement('button');
             btn.className = 'tier-select-btn';
             btn.style.backgroundColor = tier.color;
+            btn.style.color = tierTextColor(tier.color);
             btn.textContent = tier.label;
             btn.addEventListener('click', () => {
                 this.moveGameToDestination(game.id, this.draggedSourceId, tier.id);
@@ -1474,11 +1629,11 @@ class TierListApp {
             this.dom.mobileTierSelectGrid.appendChild(btn);
         });
 
-        this.dom.mobileMoveModal.style.display = 'flex';
+        this.openModal(this.dom.mobileMoveModal);
     }
 
     closeMobileModal() {
-        this.dom.mobileMoveModal.style.display = 'none';
+        this.closeModal(this.dom.mobileMoveModal);
         this.activeMobileGame = null;
     }
 
@@ -1493,25 +1648,43 @@ class TierListApp {
                 this.state.savedLists = [];
                 return;
             }
+            if (lib.length > 20 * BOARD_LIMITS.jsonBytes) throw new Error('Library exceeds read budget');
             const parsed = JSON.parse(lib);
             if (!Array.isArray(parsed)) {
                 this.state.savedLists = [];
             } else {
-                this.state.savedLists = parsed.filter(l => l && typeof l === 'object' && l.id && typeof l.title === 'string');
+                this.state.savedLists = parsed.flatMap(list => {
+                    try {
+                        if (!list || typeof list !== 'object' || !list.id) return [];
+                        const sanitized = this.validateAndSanitizeImport(list);
+                        return [{
+                            id: String(list.id),
+                            title: sanitized.title,
+                            tiers: sanitized.tiers,
+                            pool: sanitized.pool,
+                            cardStyle: sanitized.cardStyle,
+                            cardSize: sanitized.cardSize,
+                            lastEdited: typeof list.lastEdited === 'string' ? list.lastEdited : ''
+                        }];
+                    } catch (error) {
+                        return [];
+                    }
+                });
             }
         } catch (e) {
             this.state.savedLists = [];
         }
     }
 
-    saveLibraryToStorage() {
+    saveLibraryToStorage(nextLists = this.state.savedLists) {
         try {
-            localStorage.setItem('steam_tier_master_library', JSON.stringify(this.state.savedLists));
+            localStorage.setItem('steam_tier_master_library', JSON.stringify(nextLists));
+            this.state.savedLists = nextLists;
             this.updateLibraryBadge();
             this.renderLibrary();
             return true;
-        } catch (e) {
-            this.showToast("Could not save to LocalStorage (Storage quota exceeded).", "error");
+        } catch (error) {
+            this.showToast('Could not save the library to LocalStorage (storage quota exceeded or unavailable). Download Save JSON.', 'error');
             return false;
         }
     }
@@ -1524,89 +1697,51 @@ class TierListApp {
     }
 
     saveActiveList() {
-        if (!this.state.listTitle || !this.state.listTitle.trim()) {
-            this.showToast("Please give your tier list a title first", "error");
+        if (!this.state.listTitle.trim()) {
+            this.showToast('Please give your tier list a title first', 'error');
             return;
         }
-
-        const listId = this.state.id || `list-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const timestamp = new Date().toLocaleString();
-
-        const listConfig = {
-            id: listId,
-            title: this.state.listTitle,
-            tiers: JSON.parse(JSON.stringify(this.state.tiers)), // deep clone
-            pool: JSON.parse(JSON.stringify(this.state.pool)),
-            cardStyle: this.state.cardStyle,
-            cardSize: this.state.cardSize,
-            lastEdited: timestamp
-        };
-
-        const existingIndex = this.state.savedLists.findIndex(l => l.id === listId);
-
-        if (existingIndex > -1) {
-            this.state.savedLists[existingIndex] = listConfig;
-        } else {
-            this.state.savedLists.push(listConfig);
-            this.state.id = listId; // lock this active list session
-        }
-
-        if (this.saveLibraryToStorage()) {
-            this.showToast(`Saved "${this.state.listTitle}" successfully!`, "success");
-        }
+        const listId = this.state.id || allocateId(`list-${Date.now()}`, new Set(this.state.savedLists.map(l => l.id)), 'list');
+        let config;
+        try { config = this.validateAndSanitizeImport({ ...this.boardSnapshot(), title: this.state.listTitle }); }
+        catch (error) { this.showToast(`Cannot save this board: ${error.message}`, 'error'); return; }
+        const list = { ...JSON.parse(JSON.stringify(config)), id: listId, lastEdited: new Date().toLocaleString() };
+        const next = this.state.savedLists.slice();
+        const index = next.findIndex(l => l.id === listId);
+        if (index < 0) next.push(list); else next[index] = list;
+        if (!this.saveLibraryToStorage(next)) return;
+        this.state.id = listId;
+        this.saveAutoSave();
+        this.showToast(`Saved "${list.title}" successfully!`, 'success');
     }
 
     loadSavedList(listId) {
         const list = this.state.savedLists.find(l => l.id === listId);
-        if (!list) return;
-
-        this.state.id = list.id;
-        this.state.listTitle = list.title;
-        this.state.tiers = JSON.parse(JSON.stringify(list.tiers));
-        this.state.pool = JSON.parse(JSON.stringify(list.pool));
-
-        this.state.cardStyle = list.cardStyle || 'horizontal';
-        const loadedSize = list.cardSize || 'medium';
-        this.state.cardSize = ['small', 'medium', 'large'].includes(loadedSize) ? loadedSize : 'medium';
-        this.updateToggleButtonsActiveState();
-        this.applyCardStyleClasses();
-        this.applyCardSizeClasses();
-
-        // Update inputs & title
-        if (this.dom.listTitleInput) this.dom.listTitleInput.value = this.state.listTitle;
-        if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = this.state.listTitle.toUpperCase();
-
-        this.renderBoard();
-        this.renderPool();
-        
+        if (!list || !this.preservePreviousBoard()) return;
+        const config = this.validateAndSanitizeImport(JSON.parse(JSON.stringify(list)));
+        this.applyBoard(config, list.id);
         this.switchTab('builder');
-        this.showToast(`Loaded list "${list.title}"`, "success");
+        this.showToast(`Loaded list "${list.title}"`, 'success');
     }
 
     duplicateSavedList(listId) {
         const original = this.state.savedLists.find(l => l.id === listId);
         if (!original) return;
-
         const clone = JSON.parse(JSON.stringify(original));
-        clone.id = `list-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        clone.title = `${original.title} (Copy)`;
+        clone.id = allocateId(`list-${Date.now()}`, new Set(this.state.savedLists.map(l => l.id)), 'list');
+        clone.title = `${original.title.slice(0, 113)} (Copy)`;
         clone.lastEdited = new Date().toLocaleString();
-
-        this.state.savedLists.push(clone);
-        this.saveLibraryToStorage();
-        this.showToast(`Cloned list as "${clone.title}"`, "success");
+        if (this.saveLibraryToStorage([...this.state.savedLists, clone])) this.showToast(`Cloned list as "${clone.title}"`, 'success');
     }
 
     deleteSavedList(listId) {
-        this.state.savedLists = this.state.savedLists.filter(l => l.id !== listId);
-        
-        // Reset ID if active session deleted
+        const next = this.state.savedLists.filter(l => l.id !== listId);
+        if (!this.saveLibraryToStorage(next)) return;
         if (this.state.id === listId) {
             this.state.id = null;
+            this.saveAutoSave();
         }
-
-        this.saveLibraryToStorage();
-        this.showToast("Tier list deleted permanently", "success");
+        this.showToast('Tier list deleted permanently', 'success');
     }
 
     renderLibrary() {
@@ -1726,7 +1861,7 @@ class TierListApp {
         ]);
 
         const compactPayload = {
-            t: listState.listTitle || 'Gaming Tier List',
+            t: listState.listTitle?.trim() || 'Gaming Tier List',
             r: (listState.tiers || []).map(t => ({
                 l: String(t.label),
                 c: String(t.color),
@@ -1739,6 +1874,7 @@ class TierListApp {
 
         const jsonString = JSON.stringify(compactPayload);
         const encoded = btoa(encodeURIComponent(jsonString));
+        if (encoded.length > BOARD_LIMITS.shareChars) throw new Error('This board is too large for a share link. Use Save JSON instead.');
         
         const baseUrl = window.location.origin + window.location.pathname;
         return `${baseUrl}#share=${encoded}`;
@@ -1754,52 +1890,58 @@ class TierListApp {
             // Fallback for non-HTTPS or test environments
         }
 
+        const previousFocus = document.activeElement;
+        const textArea = document.createElement('textarea');
         try {
-            const textArea = document.createElement("textarea");
             textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-999999px";
-            textArea.style.top = "-999999px";
+            textArea.style.cssText = 'position:fixed;left:-999999px;top:-999999px';
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
-            const successful = document.execCommand('copy');
-            textArea.remove();
-            return successful;
-        } catch (err) {
+            return !!document.execCommand('copy');
+        } catch (error) {
             return false;
+        } finally {
+            textArea.remove();
+            previousFocus?.focus?.();
         }
     }
 
     async shareCurrentList() {
-        const shareUrl = this.generateShareUrl(this.state);
-        const success = await this.copyToClipboard(shareUrl);
-        if (success) {
-            this.showToast("Share link copied to clipboard!", "success");
-        } else {
-            this.showToast("Failed to copy link automatically", "error");
-        }
+        try {
+            const shareUrl = this.generateShareUrl(this.state);
+            const success = await this.copyToClipboard(shareUrl);
+            if (success) {
+                this.showToast("Share link copied to clipboard!", "success");
+            } else {
+                this.showToast("Failed to copy link automatically", "error");
+            }
+        } catch (error) { this.showToast(error.message, 'error'); }
     }
+
 
     async shareSavedList(listId) {
         const targetList = this.state.savedLists.find(l => l.id === listId);
         if (!targetList) return;
 
-        const shareUrl = this.generateShareUrl({
-            listTitle: targetList.title,
-            tiers: targetList.tiers,
-            pool: targetList.pool,
-            cardStyle: targetList.cardStyle,
-            cardSize: targetList.cardSize
-        });
+        try {
+            const shareUrl = this.generateShareUrl({
+                listTitle: targetList.title,
+                tiers: targetList.tiers,
+                pool: targetList.pool,
+                cardStyle: targetList.cardStyle,
+                cardSize: targetList.cardSize
+            });
 
-        const success = await this.copyToClipboard(shareUrl);
-        if (success) {
-            this.showToast(`Share link for "${targetList.title}" copied!`, "success");
-        } else {
-            this.showToast("Failed to copy link automatically", "error");
-        }
+            const success = await this.copyToClipboard(shareUrl);
+            if (success) {
+                this.showToast(`Share link for "${targetList.title}" copied!`, "success");
+            } else {
+                this.showToast("Failed to copy link automatically", "error");
+            }
+        } catch (error) { this.showToast(error.message, 'error'); }
     }
+
 
     checkAndLoadShareUrl() {
         if (typeof window === 'undefined' || !window.location || !window.location.hash) return;
@@ -1808,10 +1950,12 @@ class TierListApp {
 
         try {
             const rawBase64 = hash.replace(/^#share=/, '');
+            if (rawBase64.length > BOARD_LIMITS.shareChars) throw new Error('Shared payload is too large');
             const jsonStr = decodeURIComponent(atob(rawBase64));
             const payload = JSON.parse(jsonStr);
 
             if (!payload || typeof payload !== 'object') return;
+            if (!Array.isArray(payload.r) || !Array.isArray(payload.p)) throw new Error('Invalid shared payload');
 
             const importedState = {
                 title: payload.t || "Shared Tier List",
@@ -1836,22 +1980,10 @@ class TierListApp {
                 cardSize: payload.sz || 'medium'
             };
 
-            this.state.id = null; // Unlocked session
-            this.state.listTitle = importedState.title;
-            if (this.dom.listTitleInput) this.dom.listTitleInput.value = importedState.title;
-            if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = importedState.title.toUpperCase();
+            const sanitizedState = this.validateAndSanitizeImport(importedState);
 
-            this.state.tiers = importedState.tiers;
-            this.state.pool = importedState.pool;
-            this.state.cardStyle = importedState.cardStyle;
-            this.state.cardSize = importedState.cardSize;
-
-            this.updateToggleButtonsActiveState();
-            this.applyCardStyleClasses();
-            this.applyCardSizeClasses();
-
-            this.renderBoard();
-            this.renderPool();
+            if (!this.preservePreviousBoard()) return;
+            this.applyBoard(sanitizedState);
 
             this.switchTab('builder');
 
@@ -1860,7 +1992,7 @@ class TierListApp {
                 window.history.replaceState(null, '', window.location.pathname);
             }
 
-            this.showToast(`Shared Tier List "${importedState.title}" loaded!`, "success");
+            this.showToast(`Shared Tier List "${sanitizedState.title}" loaded!`, "success");
         } catch (e) {
             this.showToast("Failed to parse shared link", "error");
         }
@@ -1871,6 +2003,7 @@ class TierListApp {
     // ==========================================================================
 
     async exportToPng() {
+        if (this.isExporting) return;
         if (typeof html2canvas === 'undefined') {
             this.showToast("PNG Export library (html2canvas) is not available", "error");
             return;
@@ -1880,35 +2013,57 @@ class TierListApp {
         
         const actions = document.querySelectorAll('.tier-row-actions');
         const boardControls = document.querySelector('.board-builder-controls');
+        const controls = [...actions, ...(boardControls ? [boardControls] : [])];
+        const originalDisplays = controls.map(control => control.style.display);
+        this.isExporting = true;
+        if (this.dom.btnExportPng) this.dom.btnExportPng.disabled = true;
         
         try {
             actions.forEach(a => a.style.display = 'none');
             if (boardControls) boardControls.style.display = 'none';
 
             const board = this.dom.tierListBoard;
+            const width = Math.max(1, board.scrollWidth || board.offsetWidth || 1);
+            const height = Math.max(1, board.scrollHeight || board.offsetHeight || 1);
+            const scale = Math.min(2, 16000 / width, 16000 / height, Math.sqrt(32000000 / (width * height)));
+            if (scale < 0.5) throw new Error('Board is too large for PNG. Use Save JSON or reduce the card size.');
             const canvas = await html2canvas(board, {
                 backgroundColor: '#0a0b10',
-                scale: 2,
+                scale,
                 useCORS: true,
                 allowTaint: false,
                 logging: false
             });
 
             const link = document.createElement('a');
-            link.download = `${this.state.listTitle.replace(/\s+/g, '_')}_tierlist.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.download = `${this.downloadFilename()}_tierlist.png`;
+            let objectUrl = null;
+            if (typeof canvas.toBlob === 'function' && typeof URL.createObjectURL === 'function') {
+                const blob = await new Promise((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Empty PNG')), 'image/png'));
+                objectUrl = URL.createObjectURL(blob);
+                link.href = objectUrl;
+            } else {
+                link.href = canvas.toDataURL('image/png');
+            }
             document.body.appendChild(link);
             link.click();
             link.remove();
+            if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
 
             this.showToast("PNG exported successfully!", "success");
         } catch (e) {
             console.error("Export failure:", e);
-            this.showToast("Could not generate image. Check network connection.", "error");
+            this.showToast(e.message?.includes('too large') ? e.message : 'Could not generate PNG. Try a smaller card size or Save JSON.', 'error');
         } finally {
-            actions.forEach(a => a.style.display = 'flex');
-            if (boardControls) boardControls.style.display = 'flex';
+            controls.forEach((control, index) => control.style.display = originalDisplays[index]);
+            this.isExporting = false;
+            if (this.dom.btnExportPng) this.dom.btnExportPng.disabled = false;
         }
+    }
+
+    downloadFilename() {
+        return (this.state.listTitle.trim() || 'Gaming Tier List')
+            .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_').replace(/\s+/g, '_').slice(0, 100).replace(/[. ]+$/, '') || 'Gaming_Tier_List';
     }
 
     backupJson() {
@@ -1921,7 +2076,7 @@ class TierListApp {
 
         const exportPayload = {
             version: "1.0",
-            title: this.state.listTitle,
+            title: this.state.listTitle.trim() || DEFAULT_TITLE,
             tiers: this.state.tiers.map(t => ({
                 id: String(t.id),
                 label: String(t.label),
@@ -1937,7 +2092,7 @@ class TierListApp {
 
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
-        downloadAnchor.setAttribute("download", `${this.state.listTitle.replace(/\s+/g, '_')}_config.json`);
+        downloadAnchor.setAttribute("download", `${this.downloadFilename()}_config.json`);
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
@@ -1964,6 +2119,11 @@ class TierListApp {
 
         const hexColorRegex = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
         const seenGameIds = new Set();
+        const seenTierIds = new Set(['pool', 'trash']);
+        let imageBudget = 0;
+        if (data.tiers.length > BOARD_LIMITS.tiers) throw new Error('A maximum of 50 tiers is supported');
+        const totalGames = data.pool.length + data.tiers.reduce((sum, tier) => sum + (Array.isArray(tier?.games) ? tier.games.length : 0), 0);
+        if (totalGames > BOARD_LIMITS.games) throw new Error('A maximum of 1000 games is supported');
 
         const sanitizeGame = (g, gIdx, location) => {
             if (!g || typeof g !== 'object') {
@@ -1979,21 +2139,14 @@ class TierListApp {
                 throw new Error(`Game at index ${gIdx} in ${location} missing required fields`);
             }
 
-            let id = String(g.id).trim();
-            if (!id) id = `game-${Date.now()}-${Math.random()}`;
-            if (seenGameIds.has(id)) {
-                id = `${id}_dup_${seenGameIds.size}`;
-            }
-            seenGameIds.add(id);
+            const id = allocateId(g.id, seenGameIds, `game-${location === 'pool' ? 'pool' : 'tier'}-${gIdx}`);
 
-            const name = g.name.trim();
-            let image = g.image.trim();
+            const name = g.name.trim().slice(0, 200);
+            const image = sanitizeImageUrl(g.image);
+            imageBudget += image.length;
+            if (imageBudget > 3 * 1024 * 1024) throw new Error('Combined image data exceeds 3 MiB');
 
-            if (image && !/^(https?:\/\/|data:image\/|\/)/i.test(image)) {
-                image = '';
-            }
-
-            const source = g.source ? String(g.source) : 'steam';
+            const source = g.source ? String(g.source).slice(0, 50) : 'steam';
             return { id, name, image, source };
         };
 
@@ -2005,8 +2158,8 @@ class TierListApp {
                 throw new Error(`Tier at index ${idx} missing required fields (id, label, color, games)`);
             }
 
-            const id = String(t.id).trim();
-            const label = t.label.trim();
+            const id = allocateId(t.id, seenTierIds, `tier-${idx}`);
+            const label = t.label.trim().slice(0, 30) || `Tier ${idx + 1}`;
             const color = hexColorRegex.test(t.color.trim()) ? t.color.trim() : '#6272a4';
             const games = t.games.map((g, gIdx) => sanitizeGame(g, gIdx, `tier "${label || idx}"`));
 
@@ -2020,7 +2173,7 @@ class TierListApp {
 
         return {
             version: "1.0",
-            title: data.title.trim(),
+            title: data.title.trim().slice(0, 120),
             tiers: validatedTiers,
             pool: validatedPool,
             cardStyle,
@@ -2031,72 +2184,58 @@ class TierListApp {
     importJson(event) {
         const file = event?.target?.files?.[0];
         if (!file) return;
-
+        if (this.dom.fileImport) this.dom.fileImport.value = '';
+        this.activeImportReader?.abort?.();
+        this.activeImportReader = null;
+        if (file.size > BOARD_LIMITS.jsonBytes) {
+            this.showToast('JSON files must be 5 MiB or smaller', 'error');
+            return;
+        }
         const reader = new FileReader();
-        reader.onload = (e) => {
+        this.activeImportReader = reader;
+        reader.onload = (event) => {
+            if (this.activeImportReader !== reader) return;
+            this.activeImportReader = null;
             try {
-                let parsed;
-                try {
-                    parsed = JSON.parse(e.target.result);
-                } catch (parseErr) {
-                    throw new Error("Malformed JSON text syntax error");
-                }
-
-                const sanitizedState = this.validateAndSanitizeImport(parsed);
-
-                this.state.id = null;
-                this.state.listTitle = sanitizedState.title;
-                this.state.tiers = sanitizedState.tiers;
-                this.state.pool = sanitizedState.pool;
-                this.state.cardStyle = sanitizedState.cardStyle;
-                this.state.cardSize = sanitizedState.cardSize;
-
-                if (this.dom.listTitleInput) this.dom.listTitleInput.value = this.state.listTitle;
-                if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = this.state.listTitle.toUpperCase();
-
-                this.updateToggleButtonsActiveState();
-                this.applyCardStyleClasses();
-                this.applyCardSizeClasses();
-                this.renderBoard();
-                this.renderPool();
-                this.markDirty();
-                this.saveAutoSave();
-                this.showToast("JSON Config loaded successfully!", "success");
-            } catch (err) {
-                this.showToast(`Failed to parse config: ${err.message}`, "error");
+                const raw = event.target.result;
+                if (typeof raw !== 'string' || raw.length > BOARD_LIMITS.jsonBytes) throw new Error('JSON text exceeds the 5 MiB budget');
+                const sanitized = this.validateAndSanitizeImport(JSON.parse(raw));
+                if (!this.preservePreviousBoard()) return;
+                this.applyBoard(sanitized);
+                this.showToast('JSON Config loaded successfully!', 'success');
+            } catch (error) {
+                this.showToast(`Failed to parse config: ${error.message}`, 'error');
             }
         };
-
         reader.onerror = () => {
-            this.showToast("Failed to read JSON file from disk", "error");
-            if (this.dom.fileImport) this.dom.fileImport.value = '';
+            if (this.activeImportReader !== reader) return;
+            this.activeImportReader = null;
+            this.showToast('Failed to read JSON file from disk', 'error');
         };
-
-        try {
-            reader.readAsText(file);
-        } catch (err) {
-            this.showToast(`Failed to read file: ${err.message}`, "error");
+        try { reader.readAsText(file); }
+        catch (error) {
+            this.activeImportReader = null;
+            this.showToast(`Failed to read file: ${error.message}`, 'error');
         }
-        
-        if (this.dom.fileImport) this.dom.fileImport.value = '';
     }
 
-    // ==========================================================================
-    // UTILITIES
-    // ==========================================================================
+    // Navigation and dialogs
 
     switchTab(tabId) {
         if (this.dom.tabs) {
             this.dom.tabs.forEach(btn => {
-                if (btn.dataset.tab === tabId) btn.classList.add('active');
-                else btn.classList.remove('active');
+                const active = btn.dataset.tab === tabId;
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-selected', String(active));
+                btn.tabIndex = active ? 0 : -1;
             });
         }
 
         if (this.dom.tabContents) {
             this.dom.tabContents.forEach(content => {
-                if (content.id === `tab-${tabId}`) content.classList.add('active');
-                else content.classList.remove('active');
+                const active = content.id === `tab-${tabId}`;
+                content.classList.toggle('active', active);
+                content.hidden = !active;
             });
         }
 
@@ -2106,14 +2245,6 @@ class TierListApp {
     }
 
     showConfirmModal(title, message, onConfirm, okText = "Confirm", isDanger = true) {
-        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && (window._confirmResult !== undefined || (window.navigator && window.navigator.userAgent && window.navigator.userAgent.includes('jsdom')))) {
-            const confirmed = window.confirm(message);
-            if (confirmed && onConfirm) {
-                onConfirm();
-            }
-            return;
-        }
-
         const titleEl = this.dom.confirmTitle || this.dom.confirmModalTitle || document.getElementById('confirm-modal-title');
         const msgEl = this.dom.confirmMessage || this.dom.confirmModalMessage || document.getElementById('confirm-modal-message');
 
@@ -2136,13 +2267,61 @@ class TierListApp {
         }
 
         this.confirmCallback = onConfirm;
-        if (this.dom.confirmModal) this.dom.confirmModal.style.display = 'flex';
+        this.openModal(this.dom.confirmModal, okBtn);
         this.refreshIcons();
     }
 
     closeConfirmModal() {
-        if (this.dom.confirmModal) this.dom.confirmModal.style.display = 'none';
+        this.closeModal(this.dom.confirmModal);
         this.confirmCallback = null;
+    }
+
+    openModal(modal, preferredFocus = null) {
+        if (!modal) return;
+        this.lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        this.activeModal = modal;
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        const background = document.querySelector('.app-container');
+        if (background) background.setAttribute('inert', '');
+
+        const focusTarget = preferredFocus || modal.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusTarget && typeof focusTarget.focus === 'function') focusTarget.focus();
+    }
+
+    closeModal(modal) {
+        if (!modal || (this.activeModal !== modal && modal.style.display === 'none')) return;
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+        if (this.activeModal === modal) this.activeModal = null;
+
+        const background = document.querySelector('.app-container');
+        if (background && !this.activeModal) background.removeAttribute('inert');
+        if (!this.activeModal && this.lastFocusedElement && typeof this.lastFocusedElement.focus === 'function') {
+            this.lastFocusedElement.focus();
+        }
+        if (!this.activeModal) this.lastFocusedElement = null;
+    }
+
+    trapModalFocus(event) {
+        if (!this.activeModal) return;
+        const focusable = Array.from(this.activeModal.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+        )).filter(element => element.offsetParent !== null || element === document.activeElement);
+        if (focusable.length === 0) {
+            event.preventDefault();
+            return;
+        }
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 
     clearTiers() {
@@ -2175,8 +2354,10 @@ class TierListApp {
             "Reset All",
             "Are you sure you want to completely wipe the board, pool, and reset all tiers to default?",
             () => {
+                if (!this.preservePreviousBoard()) return;
+                this.cancelPendingWork();
                 this.state.id = null;
-                this.state.listTitle = "My Ultimate Gaming Tier List";
+                this.state.listTitle = DEFAULT_TITLE;
                 if (this.dom.listTitleInput) this.dom.listTitleInput.value = this.state.listTitle;
                 if (this.dom.boardTitleDisplay) this.dom.boardTitleDisplay.textContent = this.state.listTitle.toUpperCase();
 
@@ -2337,18 +2518,22 @@ class TierListApp {
         try {
             const data = localStorage.getItem('steam_tier_master_autosave');
             if (data) {
+                if (data.length > BOARD_LIMITS.jsonBytes) throw new Error('Autosave exceeds read budget');
                 const config = JSON.parse(data);
                 if (config && typeof config === 'object' && !Array.isArray(config)) {
-                    this.state.id = config.id || null;
-                    if (typeof config.listTitle === 'string') this.state.listTitle = config.listTitle;
-                    if (Array.isArray(config.tiers)) this.state.tiers = config.tiers;
-                    if (Array.isArray(config.pool)) this.state.pool = config.pool;
-                    if (config.cardStyle && ['horizontal', 'vertical'].includes(config.cardStyle)) {
-                        this.state.cardStyle = config.cardStyle;
-                    }
-                    if (config.cardSize && ['tiny', 'small', 'medium', 'large', 'xl', 'xxl'].includes(config.cardSize)) {
-                        this.state.cardSize = config.cardSize;
-                    }
+                    const sanitized = this.validateAndSanitizeImport({
+                        title: config.listTitle?.trim() || DEFAULT_TITLE,
+                        tiers: config.tiers,
+                        pool: config.pool,
+                        cardStyle: config.cardStyle,
+                        cardSize: config.cardSize
+                    });
+                    this.state.id = config.id ? String(config.id) : null;
+                    this.state.listTitle = sanitized.title;
+                    this.state.tiers = sanitized.tiers;
+                    this.state.pool = sanitized.pool;
+                    this.state.cardStyle = sanitized.cardStyle;
+                    this.state.cardSize = sanitized.cardSize;
                     
                     if (this.dom.listTitleInput) {
                         this.dom.listTitleInput.value = this.state.listTitle;
@@ -2359,27 +2544,30 @@ class TierListApp {
                 }
             }
         } catch (e) {
-            // Gracefully ignore corrupt autosave
+            this.showToast('Saved draft could not be read. Its original data has been retained.', 'error');
         }
     }
 
     saveAutoSave() {
         try {
-            const config = {
-                id: this.state.id,
-                listTitle: this.state.listTitle,
-                tiers: this.state.tiers,
-                pool: this.state.pool,
-                cardStyle: this.state.cardStyle,
-                cardSize: this.state.cardSize
-            };
-            localStorage.setItem('steam_tier_master_autosave', JSON.stringify(config));
+            const serialized = JSON.stringify(this.boardSnapshot());
+            if (serialized.length > BOARD_LIMITS.jsonBytes) throw new Error('Board exceeds storage budget');
+            localStorage.setItem('steam_tier_master_autosave', serialized);
             this.isDirty = false;
-        } catch (e) {
-            // LocalStorage errors caught safely
-            this.isDirty = false;
+            this.storageWarningShown = false;
+            this.updateSaveStatus('Saved locally');
+            return true;
+        } catch (error) {
+            this.isDirty = true;
+            this.updateSaveStatus('Not saved — download Save JSON', true);
+            if (!this.storageWarningShown) {
+                this.showToast('Autosave failed. Download Save JSON to protect your changes.', 'error');
+                this.storageWarningShown = true;
+            }
+            return false;
         }
     }
+
 }
 
 // Global entrypoint
@@ -2400,5 +2588,3 @@ if (typeof window !== 'undefined') {
         initApp();
     }
 }
-
-

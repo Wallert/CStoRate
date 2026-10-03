@@ -1,11 +1,18 @@
 {
   "name": "steam-tier-master",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "CantStop to rate - Sleek, premium interactive Steam Gaming Tier List Maker.",
   "main": "index.html",
   "scripts": {
-    "dev": "npx -y http-server -p 3000 -o",
-    "test": "node tests/run_tests.js"
+    "dev": "node scripts/dev-server.js",
+    "test": "npm run test:core && npm run test:stress && npm run test:server",
+    "test:core": "node tests/run_tests.js",
+    "test:stress": "node tests/tier5_stress_tests.js",
+    "test:server": "node tests/dev_server_tests.js",
+    "check": "node --check app.js && node --check scripts/dev-server.js && npm test"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.12.0 || >=24.0.0"
   },
   "keywords": [
     "steam",

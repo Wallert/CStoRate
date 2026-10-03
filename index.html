@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Create, save, share, and export custom Steam game tier lists.">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://r.jina.ai https://api.allorigins.win; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
     <title>CantStop to rate - Premium Steam Gaming Tier List Maker</title>
     
     <!-- Vector Favicon (Cyber Gamepad HUD Icon) -->
@@ -14,14 +17,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Oxanium:wght@400;500;600;700;900&display=swap" rel="stylesheet">
     
     <!-- Lucide Icons (loaded via CDN) -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@1.34.0/dist/umd/lucide.min.js" integrity="sha384-TkyaYJPudUfB9a60ZTQjPXXxBGDxeXJy48PDE1DeZnOdKs/QdAs3pP/B9ApNJIH8" crossorigin="anonymous"></script>
     
     <!-- html2canvas CDN (for high-fidelity image exports) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="gaming-theme">
+    <a class="skip-link" href="#tier-list-board">Skip to tier board</a>
     
     <!-- Cyberpunk Immersive Holographic Grid Overlay -->
     <div class="cyber-grid-overlay"></div>
@@ -42,11 +46,11 @@
                 </div>
             </div>
             
-            <nav class="tab-navigation">
-                <button class="nav-btn active" data-tab="builder">
+            <nav class="tab-navigation" role="tablist" aria-label="Application sections">
+                <button class="nav-btn active" data-tab="builder" role="tab" id="tab-button-builder" aria-controls="tab-builder" aria-selected="true">
                     <i data-lucide="layout-grid"></i> Builder
                 </button>
-                <button class="nav-btn" data-tab="library">
+                <button class="nav-btn" data-tab="library" role="tab" id="tab-button-library" aria-controls="tab-library" aria-selected="false" tabindex="-1">
                     <i data-lucide="folder-heart"></i> My Library
                     <span class="library-badge" id="library-count">0</span>
                 </button>
@@ -57,7 +61,7 @@
         <main class="app-main">
             
             <!-- BUILDER TAB -->
-            <section id="tab-builder" class="tab-content active">
+            <section id="tab-builder" class="tab-content active" role="tabpanel" aria-labelledby="tab-button-builder">
                 <div class="builder-layout">
                     
                     <!-- Sidebar Control Panel -->
@@ -68,7 +72,7 @@
                             <h3 class="section-title"><i data-lucide="settings"></i> List Info</h3>
                             <div class="input-group">
                                 <label for="list-title">Tier List Title</label>
-                                <input type="text" id="list-title" value="My Ultimate Gaming Tier List" placeholder="Enter list name...">
+                                <input type="text" id="list-title" value="My Ultimate Gaming Tier List" placeholder="Enter list name..." maxlength="120">
                             </div>
                         </div>
 
@@ -80,19 +84,19 @@
                             <div class="input-group search-container">
                                 <label for="steam-search">Search on Steam</label>
                                 <div class="search-input-wrapper">
-                                    <input type="text" id="steam-search" placeholder="Type game name (e.g. Witcher)..." autocomplete="off">
+                                    <input type="text" id="steam-search" placeholder="Type game name (e.g. Witcher)..." autocomplete="off" maxlength="100" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-dropdown">
                                     <i data-lucide="search" class="search-icon"></i>
                                     <div class="spinner" id="search-spinner"></div>
                                 </div>
-                                <div class="autocomplete-dropdown" id="search-dropdown"></div>
+                                <div class="autocomplete-dropdown" id="search-dropdown" role="listbox" aria-label="Steam search results"></div>
                             </div>
 
                             <!-- Direct Link / App ID -->
                             <div class="input-group">
                                 <label for="steam-id-input">Steam Link or App ID</label>
                                 <div class="flex-input-row">
-                                    <input type="text" id="steam-id-input" placeholder="URL or ID (e.g. 570)...">
-                                    <button class="btn btn-primary" id="btn-add-by-id" title="Fetch Game">
+                                    <input type="text" id="steam-id-input" placeholder="URL or ID (e.g. 570)..." maxlength="200">
+                                    <button class="btn btn-primary" id="btn-add-by-id" title="Fetch Game" aria-label="Add game by Steam link or App ID">
                                         <i data-lucide="plus"></i>
                                     </button>
                                 </div>
@@ -108,7 +112,7 @@
                                 </button>
                                 <button class="btn btn-outline btn-relative" id="btn-import-trigger">
                                     <i data-lucide="upload"></i> Load JSON
-                                    <input type="file" id="file-import" accept=".json" style="display:none;">
+                                    <input type="file" id="file-import" accept=".json,application/json" style="display:none;">
                                 </button>
                                 <button class="btn btn-glow-pink" id="btn-export-png">
                                     <i data-lucide="image"></i> Export PNG
@@ -128,6 +132,8 @@
                                     <i data-lucide="trash-2"></i> Reset All
                                 </button>
                             </div>
+                            <p class="save-status" id="save-status" role="status" aria-live="polite">Changes are saved in this browser</p>
+                            <button class="btn btn-outline btn-block" id="btn-restore-board" hidden>Restore previous board</button>
                         </div>
 
                     </aside>
@@ -159,7 +165,7 @@
                         </div>
                         
                         <!-- The Printable Tier List Board -->
-                        <div class="tier-list-board" id="tier-list-board">
+                        <div class="tier-list-board" id="tier-list-board" tabindex="-1">
                             
                             <!-- Board Header (visible on PNG export too) -->
                             <div class="board-header">
@@ -207,7 +213,7 @@
 
 
             <!-- LIBRARY TAB -->
-            <section id="tab-library" class="tab-content">
+            <section id="tab-library" class="tab-content" role="tabpanel" aria-labelledby="tab-button-library" hidden>
                 <div class="library-view">
                     <div class="view-header">
                         <h2><i data-lucide="folder-heart"></i> Your Saved Tier Lists</h2>
@@ -223,12 +229,12 @@
         </main>
         
         <footer class="app-footer">
-            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.0</p>
+            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.3</p>
         </footer>
     </div>
 
     <!-- MOBILE / CLICK QUICK-MOVE MODAL -->
-    <div class="modal-overlay" id="mobile-move-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-move-title">
+    <div class="modal-overlay" id="mobile-move-modal" role="dialog" aria-modal="true" aria-labelledby="mobile-move-title" aria-hidden="true">
         <div class="modal-content glassmorphism">
             <div class="modal-header">
                 <h3 id="mobile-move-title">Move <span id="mobile-game-name" class="highlight-text">Game</span> to...</h3>
@@ -250,7 +256,7 @@
     </div>
 
     <!-- TIER EDIT MODAL -->
-    <div class="modal-overlay" id="tier-edit-modal" role="dialog" aria-modal="true" aria-labelledby="tier-edit-title">
+    <div class="modal-overlay" id="tier-edit-modal" role="dialog" aria-modal="true" aria-labelledby="tier-edit-title" aria-hidden="true">
         <div class="modal-content glassmorphism">
             <div class="modal-header">
                 <h3 id="tier-edit-title">Edit Tier Row Settings</h3>
@@ -291,7 +297,7 @@
     </div>
 
     <!-- GENERIC CONFIRMATION MODAL -->
-    <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+    <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-hidden="true">
         <div class="modal-content glassmorphism confirm-dialog-content">
             <div class="modal-header">
                 <div class="confirm-header-left">
@@ -313,7 +319,7 @@
     </div>
 
     <!-- Notification Toast -->
-    <div id="toast-container"></div>
+    <div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
     <script src="app.js"></script>
 </body>

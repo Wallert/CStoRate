@@ -458,7 +458,7 @@ async function runTier2Tests(reporter) {
         
         const lastToast = helpers.getLastToast();
         reporter.assert(lastToast && lastToast.isError, "Error toast displayed on PNG capture failure");
-        reporter.assert(lastToast.text.includes("Could not generate image"), "Toast informs user of export failure");
+        reporter.assert(lastToast.text.includes("Could not generate PNG"), "Toast informs user of export failure");
     });
 
     // =========================================================================
