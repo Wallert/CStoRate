@@ -1,10 +1,14 @@
 # Current CStoRate project state
 
-Date: October 3, 2026. Version: **1.0.3**. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
+Date: October 3, 2026. Version: **1.0.4**. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
 
 The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md). The application remains a static vanilla HTML/CSS/JS Steam tier-list editor with its existing neon visual design.
 
 ## Implemented and verified
+
+- List search by name or exact App ID across every tier and pool, with locations and jump-to-card buttons.
+- Duplicate warnings with locations, existing-game badges in Steam results and offline App ID duplicate checks.
+- HTTPS Reader requests, a longer bounded cold-query timeout, visible loading, explicit retry, stale-result hiding and Enter-to-add support. Eight new search regressions.
 
 - Bounded JSON import, aggregate image budget, unique IDs and reserved tier IDs.
 - Transactional library persistence, truthful autosave failure state, active-list identity persistence, fallback for temporarily empty titles, and one recoverable previous board.
@@ -15,7 +19,7 @@ The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md
 - Offline JSDOM cleanup and runtime-error detection; stress runner exit status; 29 additional audit regressions and 8 local-server checks.
 - Updated transitive test dependency undici to 7.30.0. npm audit currently reports 0 known vulnerabilities.
 
-`npm run check` passed: 139 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks covered Steam metadata for Dota 2, keyboard movement, library save/reload, desktop layout and a 375 px viewport. These checks do not establish universal browser support or full WCAG compliance.
+`npm run check` passed: 147 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks covered Steam metadata for Dota 2, keyboard movement, library save/reload, desktop layout and a 375 px viewport. These checks do not establish universal browser support or full WCAG compliance.
 
 ## Remaining limits
 
@@ -23,6 +27,6 @@ Public static hosting depends on external Steam CORS providers unless an owned s
 
 ## Running and publishing
 
-Use `start.bat` or `npm run dev`, then open http://127.0.0.1:8080. For tests use `npm ci` and `npm run check`. See [DEPLOYMENT.md](DEPLOYMENT.md) for public-host configuration. Publishing requires a separate review and push/deploy.
+Use `start.bat` or `npm run dev`, then open http://127.0.0.1:8080. For tests use `npm ci` and `npm run check`. See [DEPLOYMENT.md](DEPLOYMENT.md) for public-host configuration. Updates are published through main and verified in GitHub Actions and on the live site.
 
 The older RELEASE_1.0.2_HANDOFF.md is historical release material; it is not the current release state or authorization to publish.

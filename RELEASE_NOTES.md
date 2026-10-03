@@ -1,6 +1,17 @@
 # Release Notes — CantStop to rate (CStoRate)
 
 
+## v1.0.4 Search and duplicate feedback
+
+Release dated October 3, 2026.
+
+- Search the current list by game name or exact App ID across all tiers and the pool; results show locations and focus the matching card. Search updates after board edits without hiding cards or changing exports.
+- Explain duplicates with the existing tier or pool location. Mark existing games in Steam results and reject repeated App IDs before any network request, including IDs with leading zeros.
+- Request the HTTPS Steam endpoint through Jina Reader and allow up to 15 seconds for cold queries. Hide stale results while loading, announce progress, offer Retry search after errors, and allow Enter to add the first visible result.
+- Added 8 behavioral regressions; 147 DOM, 8 stress and 8 server checks pass.
+
+GitHub Pages still relies on public CORS providers for Steam data. A successful query does not guarantee provider availability for every user or query.
+
 ## v1.0.3 Audit fixes
 
 Release dated October 3, 2026. Deployment status is available in GitHub Actions and the live site's version footer.

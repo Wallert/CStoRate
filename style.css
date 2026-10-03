@@ -535,6 +535,40 @@ select.gaming-select option {
     text-overflow: ellipsis;
 }
 
+.search-feedback:has(:empty):has(button[hidden]) { display: none; }
+.search-feedback { display: flex; flex-direction: column; gap: 0.5rem; }
+.search-feedback [role="status"], .search-game-location,
+#board-search-status, .board-search-result small {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+.search-game-location { display: block; white-space: normal; }
+.board-search { margin-bottom: 1.5rem; }
+.board-search input { font-size: 1rem; min-width: 0; }
+.board-search .flex-input-row { align-items: stretch; }
+.board-search .btn { min-width: 44px; min-height: 44px; }
+#board-search-status { margin: 0.25rem 0 0; }
+.board-search-results { max-height: 240px; overflow-y: auto; }
+.board-search-result {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    width: 100%;
+    min-height: 44px;
+    padding: 0.65rem 0.8rem;
+    text-align: start;
+    font: inherit;
+    color: var(--text-primary);
+    background: var(--bg-card);
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+.board-search-result:hover { background: rgba(189, 147, 249, 0.12); }
+.board-search-result:focus-visible { outline: 2px solid var(--neon-purple); outline-offset: -2px; }
+
 /* Quick Add badges */
 .quick-add-section {
     margin-top: 1rem;

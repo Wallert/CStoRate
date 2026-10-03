@@ -106,6 +106,8 @@ class TierListApp {
         this.cancelMouseDrag?.();
         if (this.dom.searchDropdown) this.dom.searchDropdown.style.display = 'none';
         if (this.dom.searchSpinner) this.dom.searchSpinner.style.display = 'none';
+        if (this.dom.searchStatus) this.dom.searchStatus.textContent = '';
+        if (this.dom.retrySearch) this.dom.retrySearch.hidden = true;
         this.dom.steamSearch?.setAttribute('aria-expanded', 'false');
         this.dom.steamSearch?.removeAttribute('aria-activedescendant');
     }
@@ -252,6 +254,12 @@ class TierListApp {
             steamSearch: document.getElementById('steam-search'),
             searchSpinner: document.getElementById('search-spinner'),
             searchDropdown: document.getElementById('search-dropdown'),
+            searchStatus: document.getElementById('steam-search-status'),
+            retrySearch: document.getElementById('btn-retry-search'),
+            boardSearch: document.getElementById('board-search'),
+            boardSearchStatus: document.getElementById('board-search-status'),
+            boardSearchResults: document.getElementById('board-search-results'),
+            clearBoardSearch: document.getElementById('btn-clear-board-search'),
             steamIdInput: document.getElementById('steam-id-input'),
             btnAddById: document.getElementById('btn-add-by-id'),
             btnSave: document.getElementById('btn-save'),
@@ -361,7 +369,20 @@ class TierListApp {
                 this.handleSearchInput(e.target.value);
             });
             this.dom.steamSearch.addEventListener('keydown', event => this.handleSearchKey(event));
+            this.dom.steamSearch.addEventListener('focus', () => {
+                if (this.dom.steamSearch.value.trim().length >= 2) this.handleSearchInput(this.dom.steamSearch.value);
+            });
         }
+        this.dom.retrySearch?.addEventListener('click', () => this.handleSearchInput(this.dom.steamSearch.value, true));
+        this.dom.boardSearch?.addEventListener('input', () => this.refreshBoardSearch());
+        this.dom.clearBoardSearch?.addEventListener('click', () => {
+            this.dom.boardSearch.value = '';
+            this.refreshBoardSearch();
+            this.dom.boardSearch.focus();
+        });
+        this.dom.boardSearch?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') this.dom.clearBoardSearch.click();
+        });
 
         // Global Keydown for Escape key (close modals and search dropdown)
         document.addEventListener('keydown', (e) => {
@@ -379,7 +400,7 @@ class TierListApp {
         // Close search dropdown on click outside
         document.addEventListener('click', (e) => {
             if (this.dom.steamSearch && this.dom.searchDropdown) {
-                if (!this.dom.steamSearch.contains(e.target) && !this.dom.searchDropdown.contains(e.target)) {
+                if (!e.target.closest('.search-container')) {
                     this.dismissSearch();
                 }
             }
@@ -738,13 +759,14 @@ class TierListApp {
         } else if (isLocalHost) candidates.push(`${parsedUrl.pathname}${parsedUrl.search}`);
 
         // Jina Reader currently provides a CORS-enabled pass-through for public JSON.
-        candidates.push(`https://r.jina.ai/http://store.steampowered.com${parsedUrl.pathname}${parsedUrl.search}`);
+        candidates.push(`https://r.jina.ai/https://store.steampowered.com${parsedUrl.pathname}${parsedUrl.search}`);
         candidates.push(`https://api.allorigins.win/raw?url=${encodeURIComponent(steamUrl)}`);
 
         let lastError = null;
         for (const url of candidates) {
             try {
-                const result = await this.fetchJsonWithTimeout(url, { signal, timeoutMs: 6500 });
+                // Reader may need to fetch a new query upstream before replying.
+                const result = await this.fetchJsonWithTimeout(url, { signal, timeoutMs: url.startsWith('https://r.jina.ai/') ? 15000 : 6500 });
                 const valid = parsedUrl.pathname.includes('storesearch')
                     ? Array.isArray(result?.items)
                     : typeof result?.[parsedUrl.searchParams.get('appids')]?.success === 'boolean';
@@ -758,7 +780,11 @@ class TierListApp {
         throw lastError || new Error('Steam service is unavailable');
     }
 
-    handleSearchInput(query) {
+    handleSearchInput(query, retry = false) {
+        query = String(query).trim().slice(0, 100);
+        if (this.dom.retrySearch) this.dom.retrySearch.hidden = true;
+        if (this.dom.searchStatus) this.dom.searchStatus.textContent = '';
+        if (this.dom.searchDropdown) this.dom.searchDropdown.style.display = 'none';
         this.dom.steamSearch?.setAttribute('aria-expanded', 'false');
         this.dom.steamSearch?.removeAttribute('aria-activedescendant');
         clearTimeout(this.searchTimeout);
@@ -775,6 +801,7 @@ class TierListApp {
         }
 
         if (this.dom.searchSpinner) this.dom.searchSpinner.style.display = 'block';
+        if (this.dom.searchStatus) this.dom.searchStatus.textContent = 'Searching Steam… New searches can take a few seconds.';
 
         this.activeSearchAbortController = new AbortController();
         const signal = this.activeSearchAbortController.signal;
@@ -782,7 +809,7 @@ class TierListApp {
         this.searchTimeout = setTimeout(async () => {
             try {
                 const cacheKey = query.trim().toLowerCase();
-                if (this.searchCache.has(cacheKey)) {
+                if (!retry && this.searchCache.has(cacheKey)) {
                     this.renderSearchDropdown(this.searchCache.get(cacheKey));
                     return;
                 }
@@ -806,10 +833,12 @@ class TierListApp {
                 }
             } catch (err) {
                 if (signal.aborted || err.name === 'AbortError') return;
-                this.renderSearchMessage('Steam search is temporarily unavailable. Try an App ID or retry shortly.', true);
+                this.renderSearchMessage('Steam search could not respond. Retry or add a game by App ID.', true);
+                if (this.dom.retrySearch) this.dom.retrySearch.hidden = false;
             } finally {
                 if (!signal.aborted && this.dom.searchSpinner) {
                     this.dom.searchSpinner.style.display = 'none';
+                    if (this.dom.searchStatus) this.dom.searchStatus.textContent = this.dom.retrySearch?.hidden === false ? 'Steam search is unavailable.' : '';
                 }
             }
         }, 400);
@@ -863,6 +892,13 @@ class TierListApp {
             const titleSpan = document.createElement('span');
             titleSpan.className = 'game-title';
             titleSpan.textContent = item.name;
+            const existing = this.findBoardGame(item.id);
+            if (existing) {
+                const location = document.createElement('small');
+                location.className = 'search-game-location';
+                location.textContent = `Already in ${existing.location}`;
+                titleSpan.appendChild(location);
+            }
 
             el.append(img, titleSpan);
 
@@ -887,15 +923,23 @@ class TierListApp {
         this.dom.searchSpinner.style.display = 'none';
         this.dom.steamSearch.setAttribute('aria-expanded', 'false');
         this.dom.steamSearch.removeAttribute('aria-activedescendant');
+        if (this.dom.searchStatus) this.dom.searchStatus.textContent = '';
+        if (this.dom.retrySearch) this.dom.retrySearch.hidden = true;
     }
 
     handleSearchKey(event) {
         if (event.key === 'Escape' || event.key === 'Tab') { this.dismissSearch(); return; }
         const options = Array.from(this.dom.searchDropdown.querySelectorAll('[role="option"]'));
-        if (!options.length || this.dom.searchDropdown.style.display === 'none') return;
-        if (event.key === 'Enter' && this.searchSelection >= 0) {
+        if (event.key === 'Enter' && (!options.length || this.dom.searchDropdown.style.display === 'none')) {
             event.preventDefault();
-            options[this.searchSelection]?.click();
+            if (this.dom.searchSpinner.style.display === 'block') return;
+            this.handleSearchInput(this.dom.steamSearch.value, true);
+            return;
+        }
+        if (!options.length || this.dom.searchDropdown.style.display === 'none') return;
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            options[Math.max(0, this.searchSelection ?? -1)]?.click();
             return;
         }
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -926,6 +970,9 @@ class TierListApp {
             this.showToast("Could not parse Steam URL or App ID", "error");
             return;
         }
+        appId = String(Number(appId));
+        const existing = this.findBoardGame(appId);
+        if (existing) { this.warnDuplicate(existing); return; }
 
         this.dom.steamIdInput.disabled = true;
         if (this.dom.btnAddById) this.dom.btnAddById.disabled = true;
@@ -974,19 +1021,13 @@ class TierListApp {
     }
 
     addGameToPool(id, name, image) {
+        const stringId = /^\d{1,10}$/.test(String(id)) ? String(Number(id)) : String(id);
+        const existing = this.findBoardGame(stringId);
+        if (existing) { this.warnDuplicate(existing); return false; }
         if (this.state.pool.length + this.state.tiers.reduce((n, t) => n + t.games.length, 0) >= BOARD_LIMITS.games) {
             this.showToast('A maximum of 1000 games is supported', 'error');
             return;
         }
-        const stringId = String(id);
-        const existsInPool = this.state.pool.some(g => String(g.id) === stringId);
-        const existsInTiers = this.state.tiers.some(t => t.games.some(g => String(g.id) === stringId));
-
-        if (existsInPool || existsInTiers) {
-            this.showToast(`"${name}" is already on the board!`, "error");
-            return;
-        }
-
         const cleanImage = sanitizeImageUrl(image);
 
         const cleanName = String(name || `Steam App #${stringId}`).trim().slice(0, 200);
@@ -995,6 +1036,60 @@ class TierListApp {
         this.renderPool();
         this.saveAutoSave();
         this.showToast(`Added "${name}" to unassigned pool`, "success");
+        return true;
+    }
+
+    boardGames() {
+        return [
+            ...this.state.tiers.flatMap(tier => tier.games.map(game => ({ game, sourceId: tier.id, location: `tier ${tier.label}` }))),
+            ...this.state.pool.map(game => ({ game, sourceId: 'pool', location: 'unassigned pool' }))
+        ];
+    }
+
+    findBoardGame(id) {
+        const canonical = value => /^\d{1,10}$/.test(String(value)) ? String(Number(value)) : String(value);
+        return this.boardGames().find(entry => canonical(entry.game.id) === canonical(id));
+    }
+
+    warnDuplicate(entry) {
+        this.showToast(`"${entry.game.name}" is already on the board — in ${entry.location}. A duplicate was not added.`, 'error');
+        this.revealBoardGame(entry);
+    }
+
+    revealBoardGame(entry) {
+        const card = Array.from(document.querySelectorAll('.game-card')).find(node =>
+            node.dataset.gameId === String(entry.game.id) && node.dataset.sourceId === entry.sourceId);
+        card?.scrollIntoView?.({ block: 'center', behavior: 'auto' });
+        card?.focus({ preventScroll: true });
+    }
+
+    refreshBoardSearch() {
+        if (!this.dom.boardSearch) return;
+        const query = this.dom.boardSearch.value.trim().normalize('NFKC').toLocaleLowerCase();
+        this.dom.clearBoardSearch.hidden = !query;
+        this.dom.boardSearchResults.replaceChildren();
+        this.dom.boardSearchResults.hidden = !query;
+        if (!query) {
+            this.dom.boardSearchStatus.textContent = 'Search across every tier and the unassigned pool.';
+            return;
+        }
+        const matches = this.boardGames().filter(({ game }) =>
+            String(game.name).normalize('NFKC').toLocaleLowerCase().includes(query) || String(game.id) === query);
+        this.dom.boardSearchStatus.textContent = matches.length
+            ? `${matches.length} game${matches.length === 1 ? '' : 's'} found${matches.length > 20 ? ' · showing the first 20' : ''}. Select a result to jump to its card.`
+            : 'This game is not in this list.';
+        matches.slice(0, 20).forEach(entry => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'board-search-result';
+            const name = document.createElement('span');
+            name.textContent = entry.game.name;
+            const location = document.createElement('small');
+            location.textContent = `${entry.location} · App ID ${entry.game.id}`;
+            button.append(name, location);
+            button.addEventListener('click', () => this.revealBoardGame(entry));
+            this.dom.boardSearchResults.appendChild(button);
+        });
     }
 
 
@@ -1093,6 +1188,7 @@ class TierListApp {
         });
 
         this.refreshIcons();
+        this.refreshBoardSearch();
     }
 
     renderPool() {
@@ -1122,6 +1218,7 @@ class TierListApp {
             this.dom.trashDropzone.dataset.bound = 'true';
         }
         this.refreshIcons();
+        this.refreshBoardSearch();
     }
 
     createGameCardDom(game, sourceId) {
@@ -1438,6 +1535,7 @@ class TierListApp {
     }
 
     updatePoolCountDisplay() {
+        this.refreshBoardSearch();
         if (this.state.pool.length === 0) {
             this.dom.poolEmptyState.style.display = 'flex';
             this.dom.poolCount.textContent = '0 games';

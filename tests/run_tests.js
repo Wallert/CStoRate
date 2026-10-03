@@ -9,6 +9,7 @@ const { runTier4Tests } = require('./tier4_real_world_tests');
 const { runTier5Tests } = require('./tier5_adversarial_tests');
 const { runReleaseRegressionTests } = require('./release_regression_tests');
 const { runAuditRegressionTests } = require('./audit_regression_tests');
+const { runSearchRegressionTests } = require('./search_regression_tests');
 const { assertNoRuntimeErrors, closeTestEnvironments } = require('./harness');
 
 class TestReporter {
@@ -68,7 +69,7 @@ class TestReporter {
         console.log(`\n==================================================`);
         console.log(`E2E TEST RUNNER SUMMARY RESULTS`);
         console.log(`==================================================`);
-        console.log(`Total Suites: 7`);
+        console.log(`Total Suites: 8`);
         console.log(`Total Tests:  ${this.totalTests}`);
         console.log(`Passed:       ${this.passed}`);
         console.log(`Failed:       ${this.failed}`);
@@ -103,6 +104,7 @@ async function main() {
         await runTier5Tests(reporter);
         await runReleaseRegressionTests(reporter);
         await runAuditRegressionTests(reporter);
+        await runSearchRegressionTests(reporter);
     } catch (err) {
         console.error("Critical test execution failure:", err);
         process.exit(1);

@@ -1,6 +1,6 @@
 # CStoRate deployment and local development
 
-CStoRate 1.0.3 is a static HTML/CSS/JavaScript site. Its Node server is a local development helper, not a hosted account backend. Check GitHub Actions and the live site's version footer for deployment status.
+CStoRate 1.0.4 is a static HTML/CSS/JavaScript site. Its Node server is a local development helper, not a hosted account backend. Check GitHub Actions and the live site's version footer for deployment status.
 
 ## Run locally
 
@@ -30,7 +30,7 @@ GitHub Pages and localhost have different browser origins, so localStorage does 
 
 ## Steam requests on public hosts
 
-Steam does not normally allow direct cross-origin browser requests to these APIs. On localhost the app first tries the included same-origin proxy. On public static hosts it uses Jina, then AllOrigins, with cancellation, a 6.5-second timeout per candidate, bounded caches and response schema checks. Providers can fail or rate-limit; errors are visible and retryable, and availability is not guaranteed.
+Steam does not normally allow direct cross-origin browser requests to these APIs. On localhost the app first tries the included same-origin proxy. On public static hosts it uses Jina, then AllOrigins, with cancellation, a 15-second timeout for HTTPS Jina Reader and 6.5 seconds for other candidates, bounded caches and response schema checks. Providers can fail or rate-limit; loading is announced, errors have an explicit Retry search button, and availability is not guaranteed.
 
 For an owned proxy, deploy the backend separately and add this opt-in setting in index.html:
 

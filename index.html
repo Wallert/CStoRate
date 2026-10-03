@@ -88,6 +88,10 @@
                                     <i data-lucide="search" class="search-icon"></i>
                                     <div class="spinner" id="search-spinner"></div>
                                 </div>
+                                <div class="search-feedback">
+                                    <span id="steam-search-status" role="status" aria-live="polite"></span>
+                                    <button class="btn btn-outline" id="btn-retry-search" type="button" hidden>Retry search</button>
+                                </div>
                                 <div class="autocomplete-dropdown" id="search-dropdown" role="listbox" aria-label="Steam search results"></div>
                             </div>
 
@@ -164,6 +168,16 @@
                             </div>
                         </div>
                         
+                        <div class="board-search input-group">
+                            <label for="board-search">Find a game in this list</label>
+                            <div class="flex-input-row">
+                                <input type="text" id="board-search" placeholder="Game name or App ID…" maxlength="100" aria-describedby="board-search-status" aria-controls="board-search-results">
+                                <button class="btn btn-outline" id="btn-clear-board-search" type="button" aria-label="Clear list search" hidden><i data-lucide="x"></i></button>
+                            </div>
+                            <p id="board-search-status" role="status" aria-live="polite">Search across every tier and the unassigned pool.</p>
+                            <div id="board-search-results" class="board-search-results" aria-label="Games in this list" hidden></div>
+                        </div>
+
                         <!-- The Printable Tier List Board -->
                         <div class="tier-list-board" id="tier-list-board" tabindex="-1">
                             
@@ -229,7 +243,7 @@
         </main>
         
         <footer class="app-footer">
-            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.3</p>
+            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.4</p>
         </footer>
     </div>
 
