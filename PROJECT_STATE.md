@@ -1,10 +1,12 @@
 # Current CStoRate project state
 
-Date: October 3, 2026. Version: **1.0.4**. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
+Date: October 4, 2026. Version: **1.0.5**. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
 
 The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md). The application remains a static vanilla HTML/CSS/JS Steam tier-list editor with its existing neon visual design.
 
 ## Implemented and verified
+
+- Compact responsive toolbar: Card Format, list search, Card Size on wide boards; full-width search underneath controls on narrow boards. Results span the toolbar and disappear when the query is cleared. Keyboard order follows the responsive layout.
 
 - List search by name or exact App ID across every tier and pool, with locations and jump-to-card buttons.
 - Duplicate warnings with locations, existing-game badges in Steam results and offline App ID duplicate checks.

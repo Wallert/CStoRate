@@ -59,7 +59,7 @@ npm run check
 
 The check command validates JavaScript syntax and runs offline DOM integration/regression tests, stress tests, and HTTP tests for the local server. Tests close their browser environments and return failing exit codes.
 
-Current version: **1.0.4**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
+Current version: **1.0.5**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
 
 ---
 

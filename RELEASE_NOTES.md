@@ -1,6 +1,15 @@
 # Release Notes — CantStop to rate (CStoRate)
 
 
+## v1.0.5 Compact search toolbar
+
+Release dated October 4, 2026.
+
+- Move list search between Card Format and Card Size, with aligned labels and controls.
+- On narrower boards, place search below the display controls at full width. Use the actual toolbar width for responsive changes.
+- Show search results beneath the entire toolbar; hide feedback when the query is cleared. Keep keyboard order aligned with the visual layout.
+- Existing search, duplicate protection and PNG behavior remain covered by 147 DOM, 8 stress and 8 server checks.
+
 ## v1.0.4 Search and duplicate feedback
 
 Release dated October 3, 2026.

@@ -1,6 +1,6 @@
 {
   "name": "steam-tier-master",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "CantStop to rate - Sleek, premium interactive Steam Gaming Tier List Maker.",
   "main": "index.html",
   "scripts": {

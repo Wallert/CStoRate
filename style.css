@@ -544,11 +544,12 @@ select.gaming-select option {
     line-height: 1.5;
 }
 .search-game-location { display: block; white-space: normal; }
-.board-search { margin-bottom: 1.5rem; }
+.board-search { margin: 0; min-width: 0; grid-area: search; }
 .board-search input { font-size: 1rem; min-width: 0; }
-.board-search .flex-input-row { align-items: stretch; }
+.board-search .flex-input-row { align-items: stretch; min-height: 52px; }
 .board-search .btn { min-width: 44px; min-height: 44px; }
-#board-search-status { margin: 0.25rem 0 0; }
+.board-search-feedback { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); }
+#board-search-status { margin: 0 0 0.5rem; }
 .board-search-results { max-height: 240px; overflow-y: auto; }
 .board-search-result {
     display: flex;
@@ -1667,23 +1668,50 @@ select.gaming-select option {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-md);
     padding: 0.75rem 1.25rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    container-type: inline-size;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
     margin-bottom: 1.5rem;
-    flex-wrap: wrap;
-    gap: 0.75rem 1rem;
 }
 
+.board-toolbar-controls {
+    display: grid;
+    grid-template-columns: max-content minmax(12rem, 1fr) max-content;
+    grid-template-areas: "format search size";
+    align-items: end;
+    gap: 1rem;
+}
+.toolbar-format { grid-area: format; }
+.toolbar-size { grid-area: size; }
 .toolbar-section {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
     min-width: 0;
     flex-wrap: wrap;
+}
+
+.board-toolbar .board-search label { letter-spacing: 1px; font-weight: 700; }
+.board-toolbar .btn-group-toggle { min-height: 52px; }
+.board-toolbar .btn-toggle { min-height: 44px; justify-content: center; }
+
+@container (max-width: 680px) {
+    .board-toolbar-controls {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: "format size" "search search";
+    }
+}
+@container (max-width: 400px) {
+    .board-toolbar-controls {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "format" "size" "search";
+        gap: 0.75rem;
+    }
+    .board-toolbar .toolbar-section { align-items: stretch; }
+    .board-toolbar .btn-group-toggle { display: flex; width: 100%; }
+    .board-toolbar .btn-toggle { flex: 1; padding-inline: 8px; }
 }
 
 .toolbar-label {

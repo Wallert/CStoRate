@@ -147,35 +147,38 @@
                         
                         <!-- Board Toolbar (Dynamic configurations) -->
                         <div class="board-toolbar glassmorphism">
-                            <div class="toolbar-section">
-                                <span class="toolbar-label"><i data-lucide="sliders-horizontal"></i> Card Format:</span>
-                                <div class="btn-group-toggle" id="layout-toggle-group">
-                                    <button class="btn btn-toggle active" data-layout="horizontal">
-                                        <i data-lucide="gallery-horizontal"></i> Horizontal
-                                    </button>
-                                    <button class="btn btn-toggle" data-layout="vertical">
-                                        <i data-lucide="gallery-vertical"></i> Vertical
-                                    </button>
+                            <div class="board-toolbar-controls">
+                                <div class="toolbar-section toolbar-format">
+                                    <span class="toolbar-label"><i data-lucide="sliders-horizontal"></i> Card Format:</span>
+                                    <div class="btn-group-toggle" id="layout-toggle-group">
+                                        <button class="btn btn-toggle active" data-layout="horizontal">
+                                            <i data-lucide="gallery-horizontal"></i> Horizontal
+                                        </button>
+                                        <button class="btn btn-toggle" data-layout="vertical">
+                                            <i data-lucide="gallery-vertical"></i> Vertical
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="board-search input-group">
+                                    <label class="toolbar-label" for="board-search"><i data-lucide="search"></i> Find in list</label>
+                                    <div class="flex-input-row">
+                                        <input type="text" id="board-search" placeholder="Game name or App ID…" maxlength="100" aria-describedby="board-search-status" aria-controls="board-search-results">
+                                        <button class="btn btn-outline" id="btn-clear-board-search" type="button" aria-label="Clear list search" hidden><i data-lucide="x"></i></button>
+                                    </div>
+                                </div>
+                                <div class="toolbar-section toolbar-size">
+                                    <span class="toolbar-label"><i data-lucide="maximize-2"></i> Card Size:</span>
+                                    <div class="btn-group-toggle" id="size-toggle-group">
+                                        <button class="btn btn-toggle" data-size="small">Small</button>
+                                        <button class="btn btn-toggle active" data-size="medium">Medium</button>
+                                        <button class="btn btn-toggle" data-size="large">Large</button>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="toolbar-section">
-                                <span class="toolbar-label"><i data-lucide="maximize-2"></i> Card Size:</span>
-                                <div class="btn-group-toggle" id="size-toggle-group">
-                                    <button class="btn btn-toggle" data-size="small">Small</button>
-                                    <button class="btn btn-toggle active" data-size="medium">Medium</button>
-                                    <button class="btn btn-toggle" data-size="large">Large</button>
-                                </div>
+                            <div class="board-search-feedback" id="board-search-feedback" hidden>
+                                <p id="board-search-status" role="status" aria-live="polite">Search across every tier and the unassigned pool.</p>
+                                <div id="board-search-results" class="board-search-results" aria-label="Games in this list" hidden></div>
                             </div>
-                        </div>
-                        
-                        <div class="board-search input-group">
-                            <label for="board-search">Find a game in this list</label>
-                            <div class="flex-input-row">
-                                <input type="text" id="board-search" placeholder="Game name or App ID…" maxlength="100" aria-describedby="board-search-status" aria-controls="board-search-results">
-                                <button class="btn btn-outline" id="btn-clear-board-search" type="button" aria-label="Clear list search" hidden><i data-lucide="x"></i></button>
-                            </div>
-                            <p id="board-search-status" role="status" aria-live="polite">Search across every tier and the unassigned pool.</p>
-                            <div id="board-search-results" class="board-search-results" aria-label="Games in this list" hidden></div>
                         </div>
 
                         <!-- The Printable Tier List Board -->
@@ -243,7 +246,7 @@
         </main>
         
         <footer class="app-footer">
-            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.4</p>
+            <p>CantStop to rate &copy; 2026 — Steam Gaming Tier List Master v1.0.5</p>
         </footer>
     </div>
 

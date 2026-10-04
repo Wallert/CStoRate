@@ -216,6 +216,7 @@ class TierListApp {
             
             // Auto initialize lucide icons
             this.refreshIcons();
+            this.bindToolbarLayout();
 
             // Start autosave loop (saves state every 2 seconds if dirty)
             if (this.autoSaveInterval) clearInterval(this.autoSaveInterval);
@@ -228,6 +229,25 @@ class TierListApp {
             console.error("Failed to initialize TierListApp:", err);
             this.showFatalError("The saved board could not be loaded. Reset local data from your browser settings and reload the page.");
         }
+    }
+
+    bindToolbarLayout() {
+        if (typeof ResizeObserver !== 'function') return;
+        const controls = this.dom.boardSearch?.closest('.board-toolbar-controls');
+        const size = controls?.querySelector('.toolbar-size');
+        if (!size) return;
+        this.toolbarResizeObserver = new ResizeObserver(([entry]) => {
+            // Keep keyboard/reading order aligned with the responsive grid.
+            // This threshold matches the toolbar's CSS container breakpoint.
+            const centered = entry.contentRect.width > 680;
+            const search = controls.querySelector('.board-search');
+            if (centered ? search.nextElementSibling === size : size.nextElementSibling === search) return;
+            const focused = document.activeElement;
+            if (centered) controls.appendChild(size);
+            else controls.insertBefore(size, search);
+            if (size.contains(focused)) focused.focus({ preventScroll: true });
+        });
+        this.toolbarResizeObserver.observe(this.dom.boardToolbar);
     }
 
     showFatalError(message) {
@@ -258,6 +278,7 @@ class TierListApp {
             retrySearch: document.getElementById('btn-retry-search'),
             boardSearch: document.getElementById('board-search'),
             boardSearchStatus: document.getElementById('board-search-status'),
+            boardSearchFeedback: document.getElementById('board-search-feedback'),
             boardSearchResults: document.getElementById('board-search-results'),
             clearBoardSearch: document.getElementById('btn-clear-board-search'),
             steamIdInput: document.getElementById('steam-id-input'),
@@ -1067,6 +1088,7 @@ class TierListApp {
         if (!this.dom.boardSearch) return;
         const query = this.dom.boardSearch.value.trim().normalize('NFKC').toLocaleLowerCase();
         this.dom.clearBoardSearch.hidden = !query;
+        if (this.dom.boardSearchFeedback) this.dom.boardSearchFeedback.hidden = !query;
         this.dom.boardSearchResults.replaceChildren();
         this.dom.boardSearchResults.hidden = !query;
         if (!query) {

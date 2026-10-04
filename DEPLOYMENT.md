@@ -1,6 +1,6 @@
 # CStoRate deployment and local development
 
-CStoRate 1.0.4 is a static HTML/CSS/JavaScript site. Its Node server is a local development helper, not a hosted account backend. Check GitHub Actions and the live site's version footer for deployment status.
+CStoRate 1.0.5 is a static HTML/CSS/JavaScript site. Its Node server is a local development helper, not a hosted account backend. Check GitHub Actions and the live site's version footer for deployment status.
 
 ## Run locally
 
