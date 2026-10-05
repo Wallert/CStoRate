@@ -24,7 +24,7 @@ Checks cover syntax, offline DOM integration/regression tests, stress cases and 
 
 ## GitHub Pages
 
-Publish the three site assets from the repository main branch/root using Repository Settings -> Pages -> Deploy from a branch, or an equivalent static workflow. Review changes and commit/push through the repository usual process. The Node dev server does not run on GitHub Pages. Do not upload CStoRate.rar, node_modules, local backups or private metadata.
+Publish the three site assets from the repository main branch/root using Repository Settings -> Pages -> Deploy from a branch, or an equivalent static workflow. Review changes and commit/push through the repository usual process. The Node dev server does not run on GitHub Pages. Do not upload archives, node_modules, local backups or private metadata.
 
 GitHub Pages and localhost have different browser origins, so localStorage does not transfer. Download Save JSON locally and import it on the published site if needed.
 

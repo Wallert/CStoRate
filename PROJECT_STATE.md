@@ -35,5 +35,3 @@ Public static hosting depends on external Steam CORS providers unless an owned s
 ## Running and publishing
 
 Use `start.bat` or `npm run dev`, then open http://127.0.0.1:8080. For tests use `npm ci` and `npm run check`. See [DEPLOYMENT.md](DEPLOYMENT.md) for public-host configuration. Updates are published through main and verified in GitHub Actions and on the live site.
-
-The older RELEASE_1.0.2_HANDOFF.md is historical release material; it is not the current release state or authorization to publish.
