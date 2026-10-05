@@ -1,10 +1,15 @@
 # Current CStoRate project state
 
-Date: October 4, 2026. Version: **1.0.5**. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
+Date: October 5, 2026. Current release: **1.0.6**, including the approved UI refinements and compact phone settings. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
 
 The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md). The application remains a static vanilla HTML/CSS/JS Steam tier-list editor with its existing neon visual design.
 
 ## Implemented and verified
+
+- Collapsible phone settings up to 768 px, with native keyboard support, independent sections, preserved open choices during resizing and protection for a focused field. Desktop settings remain open. From 360 px, display controls share one row and list search remains below them.
+- Accepted UI fixes: long-title wrapping, actual 44 px modal close buttons, a 24 px toolbar-to-board gap, two-column phone actions and spaced/wrapping pool headers. Narrower phone tier labels fit two medium horizontal covers per row at 375 px. The temporary comparison scaffold has been removed.
+- Touch swipes preserve browser scrolling; a stationary 450 ms hold arms dragging with a visible mirror. Short taps still select a tier. Pending timers, cancellation, extra fingers, lost focus and detached cards are covered by regression tests.
+- Autosave status lives outside collapsible settings and exported board content. Format/size controls expose pressed states and synchronize their highlighted choices with settings restored on reload.
 
 - Compact responsive toolbar: Card Format, list search, Card Size on wide boards; full-width search underneath controls on narrow boards. Results span the toolbar and disappear when the query is cleared. Keyboard order follows the responsive layout.
 
@@ -21,7 +26,7 @@ The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md
 - Offline JSDOM cleanup and runtime-error detection; stress runner exit status; 29 additional audit regressions and 8 local-server checks.
 - Updated transitive test dependency undici to 7.30.0. npm audit currently reports 0 known vulnerabilities.
 
-`npm run check` passed: 147 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks covered Steam metadata for Dota 2, keyboard movement, library save/reload, desktop layout and a 375 px viewport. These checks do not establish universal browser support or full WCAG compliance.
+`npm run check` passed: 158 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks at 320, 375 and 1280 px covered disclosure activation, focused-field visibility on resize, list search, duplicate feedback, long-title wrapping, two-column action controls, the 44 px modal close target, mouse dragging, click-based tier selection and pressed states after reload. Touch swipe/hold sequences and storage failures were simulated in the DOM harness. Earlier browser checks covered Steam metadata for Dota 2, keyboard movement and library save/reload. These checks do not establish universal browser support or full WCAG compliance.
 
 ## Remaining limits
 

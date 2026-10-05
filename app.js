@@ -207,6 +207,7 @@ class TierListApp {
             this.updateLibraryBadge();
             
             // Initial style configuration
+            this.updateToggleButtonsActiveState();
             this.applyCardStyleClasses();
             this.applyCardSizeClasses();
             
@@ -217,6 +218,7 @@ class TierListApp {
             // Auto initialize lucide icons
             this.refreshIcons();
             this.bindToolbarLayout();
+            this.bindSettingsDisclosures();
 
             // Start autosave loop (saves state every 2 seconds if dirty)
             if (this.autoSaveInterval) clearInterval(this.autoSaveInterval);
@@ -229,6 +231,43 @@ class TierListApp {
             console.error("Failed to initialize TierListApp:", err);
             this.showFatalError("The saved board could not be loaded. Reset local data from your browser settings and reload the page.");
         }
+    }
+
+    bindSettingsDisclosures() {
+        if (typeof window.matchMedia !== 'function') return;
+        const phone = window.matchMedia('(max-width: 768px)');
+        const groups = Array.from(document.querySelectorAll('.settings-group'));
+        const mobileOpen = new Map(groups.map(group => [group, false]));
+        const adapt = () => {
+            groups.forEach(group => {
+                const summary = group.querySelector('.settings-summary');
+                if (phone.matches) {
+                    // Never hide a form control that has focus during a resize.
+                    if (group.querySelector('.settings-content').contains(document.activeElement)) {
+                        mobileOpen.set(group, true);
+                    }
+                    group.open = mobileOpen.get(group);
+                    summary.tabIndex = 0;
+                    summary.removeAttribute('aria-disabled');
+                } else {
+                    group.open = true;
+                    summary.tabIndex = -1;
+                    summary.setAttribute('aria-disabled', 'true');
+                }
+            });
+        };
+        groups.forEach(group => {
+            group.querySelector('.settings-summary').addEventListener('click', event => {
+                if (!phone.matches) event.preventDefault();
+            });
+            group.addEventListener('toggle', () => {
+                if (phone.matches) mobileOpen.set(group, group.open);
+                else if (!group.open) group.open = true;
+            });
+        });
+        adapt();
+        if (phone.addEventListener) phone.addEventListener('change', adapt);
+        else phone.addListener(adapt);
     }
 
     bindToolbarLayout() {
@@ -1268,6 +1307,7 @@ class TierListApp {
         img.alt = game.name;
         img.loading = 'lazy';
         img.decoding = 'async';
+        img.draggable = false;
         img.crossOrigin = 'anonymous';
 
         try {
@@ -1329,6 +1369,7 @@ class TierListApp {
         // Custom Mouse Drag (allows wheel scrolling during drag)
         card.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return; // left click only
+            if (touchId !== null || Date.now() < suppressTouchClickUntil) return;
             if (e.target.closest('.steam-link-btn')) return; // don't drag on steam link
             if (e.target.closest('a')) return;
 
@@ -1363,12 +1404,53 @@ class TierListApp {
             }, 150);
         });
 
-        // Mobile / Tablet Touch Event Drag & Drop Implementation
+        // Let swipes scroll; only a stationary hold arms touch dragging.
         let touchStartX = 0;
         let touchStartY = 0;
         let touchDragged = false;
+        let touchMoved = false;
+        let touchScrolling = false;
         let touchId = null;
         let mirrorEl = null;
+        let holdTimer = null;
+        let suppressTouchClickUntil = 0;
+
+        const positionTouchMirror = (x, y) => {
+            if (!mirrorEl) {
+                mirrorEl = card.cloneNode(true);
+                mirrorEl.classList.add('touch-drag-mirror');
+                mirrorEl.setAttribute('aria-hidden', 'true');
+                mirrorEl.inert = true;
+                mirrorEl.style.cssText = `position:fixed;pointer-events:none;z-index:9999;opacity:0.85;width:${card.offsetWidth}px;height:${card.offsetHeight}px;`;
+                document.body.appendChild(mirrorEl);
+            }
+            mirrorEl.style.left = `${x - card.offsetWidth / 2}px`;
+            mirrorEl.style.top = `${y - card.offsetHeight / 2}px`;
+        };
+
+        const cancelTouch = () => {
+            clearTimeout(holdTimer);
+            holdTimer = null;
+            mirrorEl?.remove();
+            mirrorEl = null;
+            card.style.opacity = '1';
+            document.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
+            if (touchDragged || touchMoved) suppressTouchClickUntil = Date.now() + 400;
+            delete card.dataset.touchDragged;
+            touchId = null;
+            touchDragged = false;
+            touchMoved = false;
+            touchScrolling = false;
+            if (this.cancelTouchDrag === cancelTouch) {
+                this.cancelTouchDrag = null;
+                this.draggedGameId = null;
+                this.draggedSourceId = null;
+            }
+        };
+
+        card.addEventListener('contextmenu', event => {
+            if (touchId !== null && !event.target.closest('a')) event.preventDefault();
+        });
 
         card.addEventListener('touchstart', (e) => {
             if (e.target.closest('a')) return;
@@ -1380,41 +1462,46 @@ class TierListApp {
             touchStartX = touch.clientX;
             touchStartY = touch.clientY;
             touchDragged = false;
-            this.draggedGameId = String(game.id);
-            this.draggedSourceId = card.dataset.sourceId || sourceId;
+            touchMoved = false;
+            touchScrolling = false;
+            suppressTouchClickUntil = 0;
+            holdTimer = setTimeout(() => {
+                holdTimer = null;
+                if (touchId === null || !card.isConnected) { cancelTouch(); return; }
+                touchDragged = true;
+                card.dataset.touchDragged = 'true';
+                card.style.opacity = '0.4';
+                this.draggedGameId = String(game.id);
+                this.draggedSourceId = card.dataset.sourceId || sourceId;
+                positionTouchMirror(touchStartX, touchStartY);
+            }, 450);
         }, { passive: true });
 
         card.addEventListener('touchmove', (e) => {
             if (touchId === null) return;
             if (e.touches.length !== 1) { cancelTouch(); return; }
             const touch = Array.from(e.touches).find(t => (t.identifier ?? 0) === touchId);
-            if (!touch) return;
+            if (!touch) { cancelTouch(); return; }
+            if (touchScrolling) return;
             const dx = touch.clientX - touchStartX;
             const dy = touch.clientY - touchStartY;
 
-            if (!touchDragged && Math.hypot(dx, dy) > 8) {
-                touchDragged = true;
-                card.dataset.touchDragged = 'true';
-                card.style.opacity = '0.4';
+            if (!touchDragged) {
+                if (Math.hypot(dx, dy) > 8) {
+                    touchMoved = true;
+                    touchScrolling = true;
+                    clearTimeout(holdTimer);
+                    holdTimer = null;
+                }
+                return;
             }
 
             if (touchDragged) {
-                if (e.cancelable) e.preventDefault();
+                if (!e.cancelable) { cancelTouch(); return; }
+                e.preventDefault();
 
-                if (!mirrorEl) {
-                    mirrorEl = card.cloneNode(true);
-                    mirrorEl.classList.add('touch-drag-mirror');
-                    mirrorEl.style.position = 'fixed';
-                    mirrorEl.style.pointerEvents = 'none';
-                    mirrorEl.style.zIndex = '9999';
-                    mirrorEl.style.opacity = '0.85';
-                    mirrorEl.style.width = `${card.offsetWidth}px`;
-                    mirrorEl.style.height = `${card.offsetHeight}px`;
-                    document.body.appendChild(mirrorEl);
-                }
-
-                mirrorEl.style.left = `${touch.clientX - card.offsetWidth / 2}px`;
-                mirrorEl.style.top = `${touch.clientY - card.offsetHeight / 2}px`;
+                if (Math.hypot(dx, dy) > 8) touchMoved = true;
+                positionTouchMirror(touch.clientX, touch.clientY);
 
                 document.querySelectorAll('.droppable-row').forEach(zone => zone.classList.remove('drag-over'));
                 const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -1425,30 +1512,14 @@ class TierListApp {
             }
         }, { passive: false });
 
-        const cancelTouch = () => {
-            mirrorEl?.remove();
-            mirrorEl = null;
-            card.style.opacity = '1';
-            document.querySelectorAll('.drag-over').forEach(zone => zone.classList.remove('drag-over'));
-            if (touchDragged) {
-                card.dataset.touchDragged = 'true';
-                setTimeout(() => { delete card.dataset.touchDragged; }, 150);
-            }
-            touchId = null;
-            touchDragged = false;
-        };
-
         const handleTouchEnd = (e) => {
             const ended = Array.from(e.changedTouches || []).find(t => (t.identifier ?? 0) === touchId);
             if (!ended) return;
-            if (mirrorEl) {
-                mirrorEl.remove();
-                mirrorEl = null;
-            }
-            card.style.opacity = '1';
-            document.querySelectorAll('.droppable-row').forEach(zone => zone.classList.remove('drag-over'));
+            const shouldDrop = touchDragged && touchMoved;
+            if (touchDragged && e.cancelable) e.preventDefault();
+            cancelTouch();
 
-            if (touchDragged) {
+            if (shouldDrop) {
                 const touch = ended;
                 if (touch) {
                     const elemBelow = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -1457,6 +1528,7 @@ class TierListApp {
                         if (dropzone) {
                             const destTierId = dropzone.dataset.tierId;
                             const targetCard = elemBelow.closest('.game-card');
+                            if (targetCard === card) return;
                             let targetGameId = null;
                             let insertAfter = false;
 
@@ -1475,12 +1547,7 @@ class TierListApp {
                         }
                     }
                 }
-                setTimeout(() => { delete card.dataset.touchDragged; }, 150);
             }
-            touchStartX = 0;
-            touchStartY = 0;
-            touchId = null;
-            touchDragged = false;
         };
 
         card.addEventListener('touchend', handleTouchEnd);
@@ -1488,7 +1555,7 @@ class TierListApp {
 
         // Click handler triggers mobile quick selection screen ONLY if not dragging
         card.addEventListener('click', (e) => {
-            if (card.dataset.isDragging || card.dataset.touchDragged || card.dataset.justDragged) {
+            if (Date.now() < suppressTouchClickUntil || card.dataset.isDragging || card.dataset.touchDragged || card.dataset.justDragged) {
                 delete card.dataset.touchDragged;
                 delete card.dataset.justDragged;
                 return;
@@ -2616,6 +2683,7 @@ class TierListApp {
     updateToggleButtonsActiveState() {
         if (this.dom.layoutToggles) {
             this.dom.layoutToggles.forEach(btn => {
+                btn.setAttribute('aria-pressed', String(btn.dataset.layout === this.state.cardStyle));
                 if (btn.dataset.layout === this.state.cardStyle) {
                     btn.classList.add('active');
                 } else {
@@ -2625,6 +2693,7 @@ class TierListApp {
         }
         if (this.dom.sizeToggles) {
             this.dom.sizeToggles.forEach(btn => {
+                btn.setAttribute('aria-pressed', String(btn.dataset.size === this.state.cardSize));
                 if (btn.dataset.size === this.state.cardSize) {
                     btn.classList.add('active');
                 } else {
@@ -2679,7 +2748,7 @@ class TierListApp {
             return true;
         } catch (error) {
             this.isDirty = true;
-            this.updateSaveStatus('Not saved — download Save JSON', true);
+            this.updateSaveStatus('Not saved — use Actions → Save JSON', true);
             if (!this.storageWarningShown) {
                 this.showToast('Autosave failed. Download Save JSON to protect your changes.', 'error');
                 this.storageWarningShown = true;

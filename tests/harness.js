@@ -20,7 +20,7 @@ const appJsPath = path.join(__dirname, '../app.js');
 const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 const appJsContent = fs.readFileSync(appJsPath, 'utf8');
 
-function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false } = {}) {
+function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false, matchMedia = null } = {}) {
     if (!JSDOM) {
         throw new Error("JSDOM module is not installed. Please run: npm install jsdom --save-dev");
     }
@@ -51,6 +51,7 @@ function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false
 
     const { window } = dom;
     const { document } = window;
+    if (matchMedia) window.matchMedia = matchMedia;
     document.elementFromPoint = () => null;
     window.scrollBy = () => {};
     const runtimeErrors = [];

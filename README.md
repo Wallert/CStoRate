@@ -14,7 +14,8 @@ Easily search for games on Steam, paste store links or App IDs, drag and drop ga
 
 - **Steam Search & Fast Import:** Search games by name or paste Steam store links / App IDs directly.
 - **Drag & Drop:** Move games between tiers, reorder them within a row, or drag to the trash bin to delete.
-- **Mobile & Touch Friendly:** Works smoothly on phones, tablets, and desktops.
+- **Mobile Controls:** Swipe over cards to scroll, hold a card for 450 ms to drag, or tap it to choose a tier. Mouse dragging and keyboard controls are also available.
+- **Compact Phone Settings:** List Info, Add Games and Actions start collapsed on phone-width screens. Tap a heading to open it; list search stays visible. Desktop panels stay open.
 - **Card Styles:** Switch between horizontal banners and vertical posters, with adjustable card sizes.
 - **PNG & JSON Export:** Save high-resolution images of your tier lists or export your config to JSON.
 - **Auto-Save:** Saves your progress locally in your browser so you don't lose your work.
@@ -42,7 +43,7 @@ For the best search experience (and to bypass browser CORS limits on Steam API),
 
 ## Local data and recovery
 
-Autosave and My Library live in this browser profile and website origin. The status beside the Actions panel shows whether the latest changes were saved. If browser storage is blocked or full, use **Save JSON** before closing the tab.
+Autosave and My Library live in this browser profile and website origin. The status underneath the board controls shows whether the latest changes were saved, including when Actions is collapsed. If browser storage is blocked or full, open **Actions → Save JSON** before closing the tab.
 
 Loading JSON, a share link, a saved list, or Reset All preserves one previous board. Use **Restore previous board** to recover it, including after reload. This is one recovery slot, not a full undo history. JSON is the portable backup between localhost, GitHub Pages and other browsers.
 
@@ -59,7 +60,7 @@ npm run check
 
 The check command validates JavaScript syntax and runs offline DOM integration/regression tests, stress tests, and HTTP tests for the local server. Tests close their browser environments and return failing exit codes.
 
-Current version: **1.0.5**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
+Current version: **1.0.6**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
 
 ---
 

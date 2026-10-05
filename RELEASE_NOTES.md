@@ -1,5 +1,18 @@
 # Release Notes — CantStop to rate (CStoRate)
 
+## v1.0.6 UI refinements and compact phone settings
+
+Release dated October 5, 2026. Deployment status is available in GitHub Actions and the live site's version footer.
+
+- Add native collapsible List Info, Add Games and Actions panels on screens up to 768 px. Start collapsed, remember choices while resizing, and keep a focused field visible. Keep desktop panels open.
+- On phones from 360 px wide, put Card Format and Card Size on one row with full-width list search below. Keep each group's buttons in an equal-width single row, including intermediate viewport widths. Use narrower tier labels and compact row padding to leave more room for covers.
+- Wrap long board titles, use actual 44 px modal close targets, remove the doubled toolbar-to-board gap, keep phone actions in two columns, and let pool heading/counter wrap with a gap.
+- Let swipes over cards scroll. Arm touch dragging only after a stationary 450 ms hold; keep tap-to-select, cancel pending/armed gestures safely, and suppress accidental menus after a drag. Add a brief phone interaction hint.
+- Move autosave status beneath the board controls, outside collapsible settings and PNG content. Keep storage failures and recovery instructions visible.
+- Expose pressed states and group labels for format/size controls. Synchronize both their visual and accessible states with restored settings at startup.
+- Add 11 behavioral regressions for disclosures, gestures, focus, save errors and restored control states. Verified 158 DOM, 8 stress and 8 server checks. Browser checks cover responsive layout, mouse dragging, tap-to-select and settings after reload. Touch gesture sequences are tested in the DOM harness; physical iOS/Android testing remains pending.
+- Remove the temporary UI comparison page after incorporating the accepted refinements.
+
 
 ## v1.0.5 Compact search toolbar
 
