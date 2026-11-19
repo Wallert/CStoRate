@@ -330,7 +330,7 @@ async function runTier2Tests(reporter) {
         
         helpers.click('#btn-save');
         
-        const saved = JSON.parse(helpers.getWindow().localStorage.getItem('steam_tier_master_library'));
+        const saved = helpers.storedLists();
         reporter.assert(saved[0].pool.length === 150, "Saved list in LocalStorage retains 150 pool items");
     });
 

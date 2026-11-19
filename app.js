@@ -3,6 +3,42 @@
  */
 const BOARD_LIMITS = Object.freeze({ tiers: 50, games: 1000, jsonBytes: 5 * 1024 * 1024, shareChars: 500000 });
 const DEFAULT_TITLE = 'My Ultimate Gaming Tier List';
+const LEGACY_LIBRARY = 'steam_tier_master_library';
+const LIST_PREFIX = 'steam_tier_master_list:';
+
+function newListId() {
+    const words = crypto.getRandomValues(new Uint32Array(4));
+    return 'list-' + Array.from(words, word => word.toString(16).padStart(8, '0')).join('');
+}
+
+function steamId(value) {
+    const id = String(value);
+    return /^\d{1,10}$/.test(id) ? String(Number(id)) : id;
+}
+
+async function readSteamResponse(response) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('Missing response body');
+    const decoder = new TextDecoder();
+    const parts = [];
+    let bytes = 0;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            bytes += value.byteLength;
+            if (bytes > BOARD_LIMITS.jsonBytes) {
+                await reader.cancel();
+                throw new Error('Response is too large');
+            }
+            parts.push(decoder.decode(value, { stream: true }));
+        }
+        parts.push(decoder.decode());
+        return parts.join('').trim();
+    } finally {
+        reader.releaseLock();
+    }
+}
 
 function allocateId(value, seen, prefix) {
     const raw = String(value ?? '').trim();
@@ -183,6 +219,13 @@ class TierListApp {
 
             // Populate DOM elements and bindings
             this.cacheDomElements();
+            window.addEventListener('storage', event => {
+                if (event.key === null || event.key === LEGACY_LIBRARY || event.key.startsWith(LIST_PREFIX)) {
+                    this.loadLibraryFromStorage();
+                    this.updateLibraryBadge();
+                    this.renderLibrary();
+                }
+            });
             this.bindEvents();
             document.getElementById('btn-restore-board')?.addEventListener('click', () => this.restorePreviousBoard());
             this.updateRecoveryButton();
@@ -774,10 +817,7 @@ class TierListApp {
         try {
             const response = await fetch(url, { signal: controller.signal });
             if (!response.ok) throw new Error(`HTTP ${response.status || 'error'}`);
-            if (typeof response.text !== 'function') return await response.json();
-
-            const raw = (await response.text()).trim();
-            if (raw.length > BOARD_LIMITS.jsonBytes) throw new Error('Response is too large');
+            const raw = await readSteamResponse(response);
             try {
                 return JSON.parse(raw);
             } catch (directParseError) {
@@ -879,12 +919,16 @@ class TierListApp {
 
                 if (signal.aborted) return;
 
-                if (result && result.items && result.items.length > 0) {
-                    const items = result.items.map(item => ({
-                        id: String(item.id),
-                        name: String(item.name || ''),
-                        image: item.tiny_image || item.image || ''
-                    }));
+                const items = [];
+                for (const item of result.items) {
+                    if (!/^\d{1,10}$/.test(String(item?.id)) || typeof item.name !== 'string') continue;
+                    const name = item.name.trim().slice(0, 200);
+                    if (!name) continue;
+                    const image = item.tiny_image || item.image;
+                    items.push({ id: steamId(item.id), name, image: typeof image === 'string' && image.length <= 2048 ? sanitizeImageUrl(image) : '' });
+                    if (items.length === 8) break;
+                }
+                if (items.length) {
                     this.searchCache.set(cacheKey, items);
                     if (this.searchCache.size > 100) this.searchCache.delete(this.searchCache.keys().next().value);
                     this.renderSearchDropdown(items);
@@ -1005,8 +1049,9 @@ class TierListApp {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
         event.preventDefault();
         const current = this.searchSelection ?? -1;
-        this.searchSelection = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
-            : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        if (event.key === 'Home') this.searchSelection = 0;
+        else if (event.key === 'End' || (event.key === 'ArrowUp' && current < 0)) this.searchSelection = options.length - 1;
+        else this.searchSelection = (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
         options.forEach((option, index) => option.setAttribute('aria-selected', String(index === this.searchSelection)));
         this.dom.steamSearch.setAttribute('aria-activedescendant', options[this.searchSelection].id);
         options[this.searchSelection].scrollIntoView?.({ block: 'nearest' });
@@ -1081,7 +1126,7 @@ class TierListApp {
     }
 
     addGameToPool(id, name, image) {
-        const stringId = /^\d{1,10}$/.test(String(id)) ? String(Number(id)) : String(id);
+        const stringId = steamId(id);
         const existing = this.findBoardGame(stringId);
         if (existing) { this.warnDuplicate(existing); return false; }
         if (this.state.pool.length + this.state.tiers.reduce((n, t) => n + t.games.length, 0) >= BOARD_LIMITS.games) {
@@ -1107,8 +1152,7 @@ class TierListApp {
     }
 
     findBoardGame(id) {
-        const canonical = value => /^\d{1,10}$/.test(String(value)) ? String(Number(value)) : String(value);
-        return this.boardGames().find(entry => canonical(entry.game.id) === canonical(id));
+        return this.boardGames().find(entry => steamId(entry.game.id) === steamId(id));
     }
 
     warnDuplicate(entry) {
@@ -1135,7 +1179,7 @@ class TierListApp {
             return;
         }
         const matches = this.boardGames().filter(({ game }) =>
-            String(game.name).normalize('NFKC').toLocaleLowerCase().includes(query) || String(game.id) === query);
+            String(game.name).normalize('NFKC').toLocaleLowerCase().includes(query) || steamId(game.id) === steamId(query));
         this.dom.boardSearchStatus.textContent = matches.length
             ? `${matches.length} game${matches.length === 1 ? '' : 's'} found${matches.length > 20 ? ' · showing the first 20' : ''}. Select a result to jump to its card.`
             : 'This game is not in this list.';
@@ -1830,50 +1874,73 @@ class TierListApp {
 
     loadLibraryFromStorage() {
         try {
-            const lib = localStorage.getItem('steam_tier_master_library');
-            if (!lib) {
-                this.state.savedLists = [];
-                return;
-            }
-            if (lib.length > 20 * BOARD_LIMITS.jsonBytes) throw new Error('Library exceeds read budget');
-            const parsed = JSON.parse(lib);
-            if (!Array.isArray(parsed)) {
-                this.state.savedLists = [];
-            } else {
-                this.state.savedLists = parsed.flatMap(list => {
-                    try {
-                        if (!list || typeof list !== 'object' || !list.id) return [];
-                        const sanitized = this.validateAndSanitizeImport(list);
-                        return [{
-                            id: String(list.id),
-                            title: sanitized.title,
-                            tiers: sanitized.tiers,
-                            pool: sanitized.pool,
-                            cardStyle: sanitized.cardStyle,
-                            cardSize: sanitized.cardSize,
-                            lastEdited: typeof list.lastEdited === 'string' ? list.lastEdited : ''
-                        }];
-                    } catch (error) {
-                        return [];
+            const records = new Map();
+            this.legacyListIds = new Set();
+            const legacy = localStorage.getItem(LEGACY_LIBRARY);
+            if (legacy && legacy.length <= 20 * BOARD_LIMITS.jsonBytes) {
+                try {
+                    const lists = JSON.parse(legacy);
+                    if (Array.isArray(lists)) {
+                        for (const list of lists) {
+                            if (!list?.id) continue;
+                            const id = String(list.id);
+                            this.legacyListIds.add(id);
+                            records.set(id, list);
+                        }
                     }
-                });
+                } catch { /* A damaged legacy array must not hide newer lists. */ }
             }
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (!key?.startsWith(LIST_PREFIX)) continue;
+                const id = key.slice(LIST_PREFIX.length);
+                const raw = localStorage.getItem(key);
+                if (!raw || raw.length > BOARD_LIMITS.jsonBytes) continue;
+                try {
+                    const list = JSON.parse(raw);
+                    // A tombstone overrides a deleted record in the read-only legacy array.
+                    if (list === null) records.delete(id);
+                    else if (list.id === id) records.set(id, list);
+                } catch { /* Skip malformed entries individually. */ }
+            }
+            this.state.savedLists = Array.from(records.values()).flatMap(list => {
+                try {
+                    if (!list || typeof list !== 'object' || !list.id) return [];
+                    const sanitized = this.validateAndSanitizeImport(list);
+                    return [{
+                        id: String(list.id),
+                        title: sanitized.title,
+                        tiers: sanitized.tiers,
+                        pool: sanitized.pool,
+                        cardStyle: sanitized.cardStyle,
+                        cardSize: sanitized.cardSize,
+                        lastEdited: typeof list.lastEdited === 'string' ? list.lastEdited : ''
+                    }];
+                } catch (error) {
+                    return [];
+                }
+            });
         } catch (e) {
             this.state.savedLists = [];
         }
     }
 
-    saveLibraryToStorage(nextLists = this.state.savedLists) {
+    writeLibraryList(id, list) {
         try {
-            localStorage.setItem('steam_tier_master_library', JSON.stringify(nextLists));
-            this.state.savedLists = nextLists;
-            this.updateLibraryBadge();
-            this.renderLibrary();
-            return true;
+            const key = LIST_PREFIX + id;
+            if (list || this.legacyListIds.has(id)) localStorage.setItem(key, JSON.stringify(list));
+            else localStorage.removeItem(key);
         } catch (error) {
             this.showToast('Could not save the library to LocalStorage (storage quota exceeded or unavailable). Download Save JSON.', 'error');
             return false;
         }
+        const index = this.state.savedLists.findIndex(item => item.id === id);
+        if (list && index < 0) this.state.savedLists.push(list);
+        else if (list) this.state.savedLists[index] = list;
+        else if (index >= 0) this.state.savedLists.splice(index, 1);
+        this.updateLibraryBadge();
+        this.renderLibrary();
+        return true;
     }
 
     updateLibraryBadge() {
@@ -1888,15 +1955,12 @@ class TierListApp {
             this.showToast('Please give your tier list a title first', 'error');
             return;
         }
-        const listId = this.state.id || allocateId(`list-${Date.now()}`, new Set(this.state.savedLists.map(l => l.id)), 'list');
+        const listId = this.state.id || newListId();
         let config;
         try { config = this.validateAndSanitizeImport({ ...this.boardSnapshot(), title: this.state.listTitle }); }
         catch (error) { this.showToast(`Cannot save this board: ${error.message}`, 'error'); return; }
         const list = { ...JSON.parse(JSON.stringify(config)), id: listId, lastEdited: new Date().toLocaleString() };
-        const next = this.state.savedLists.slice();
-        const index = next.findIndex(l => l.id === listId);
-        if (index < 0) next.push(list); else next[index] = list;
-        if (!this.saveLibraryToStorage(next)) return;
+        if (!this.writeLibraryList(listId, list)) return;
         this.state.id = listId;
         this.saveAutoSave();
         this.showToast(`Saved "${list.title}" successfully!`, 'success');
@@ -1915,15 +1979,14 @@ class TierListApp {
         const original = this.state.savedLists.find(l => l.id === listId);
         if (!original) return;
         const clone = JSON.parse(JSON.stringify(original));
-        clone.id = allocateId(`list-${Date.now()}`, new Set(this.state.savedLists.map(l => l.id)), 'list');
+        clone.id = newListId();
         clone.title = `${original.title.slice(0, 113)} (Copy)`;
         clone.lastEdited = new Date().toLocaleString();
-        if (this.saveLibraryToStorage([...this.state.savedLists, clone])) this.showToast(`Cloned list as "${clone.title}"`, 'success');
+        if (this.writeLibraryList(clone.id, clone)) this.showToast(`Cloned list as "${clone.title}"`, 'success');
     }
 
     deleteSavedList(listId) {
-        const next = this.state.savedLists.filter(l => l.id !== listId);
-        if (!this.saveLibraryToStorage(next)) return;
+        if (!this.writeLibraryList(listId, null)) return;
         if (this.state.id === listId) {
             this.state.id = null;
             this.saveAutoSave();
@@ -2356,7 +2419,8 @@ class TierListApp {
         const validatedPool = data.pool.map((g, gIdx) => sanitizeGame(g, gIdx, 'pool'));
 
         const cardStyle = ['horizontal', 'vertical'].includes(data.cardStyle) ? data.cardStyle : 'horizontal';
-        const cardSize = ['tiny', 'small', 'medium', 'large', 'xl', 'xxl'].includes(data.cardSize) ? data.cardSize : 'medium';
+        const cardSize = ['tiny', 'small'].includes(data.cardSize) ? 'small'
+            : ['xl', 'xxl', 'large'].includes(data.cardSize) ? 'large' : 'medium';
 
         return {
             version: "1.0",
@@ -2671,11 +2735,10 @@ class TierListApp {
     }
 
     updateCardSize(size) {
+        if (this.state.cardSize === size) return;
         this.state.cardSize = size;
         this.updateToggleButtonsActiveState();
         this.applyCardSizeClasses();
-        this.renderBoard();
-        this.renderPool();
         this.markDirty();
         this.showToast(`Switched card size to ${size.toUpperCase()}`, "success");
     }

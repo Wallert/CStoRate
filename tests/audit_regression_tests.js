@@ -82,7 +82,7 @@ async function runAuditRegressionTests(reporter) {
         app.saveActiveList();
         const before = JSON.stringify(app.state.savedLists);
         const id = app.state.id;
-        window.localStorage.setItem = () => { throw new Error('quota'); };
+        window.localStorage.setItem = window.localStorage.removeItem = () => { throw new Error('quota'); };
         app.duplicateSavedList(id);
         app.deleteSavedList(id);
         app.state.id = null;
@@ -169,7 +169,7 @@ async function runAuditRegressionTests(reporter) {
     await reporter.test('Invalid proxy response advances to the next provider', async () => {
         const { app, window } = createTestEnvironment();
         let calls = 0;
-        window.fetch = async () => ({ ok: true, json: async () => ++calls === 1 ? {} : { items: [] } });
+        window.fetch = async () => Response.json(++calls === 1 ? {} : { items: [] });
         const result = await app.fetchSteamJson('https://store.steampowered.com/api/storesearch/?term=test');
         assert.equal(calls, 2);
         assert(Array.isArray(result.items));
@@ -288,7 +288,7 @@ async function runAuditRegressionTests(reporter) {
         const { app, document, window } = createTestEnvironment();
         const meta = document.createElement('meta'); meta.name = 'steam-proxy'; meta.content = '/steam-api/'; document.head.append(meta);
         const urls = [];
-        window.fetch = async url => { urls.push(url); return { ok: true, json: async () => ({ items: [] }) }; };
+        window.fetch = async url => { urls.push(url); return Response.json({ items: [] }); };
         await app.fetchSteamJson('https://store.steampowered.com/api/storesearch/?term=Dota');
         assert.equal(urls[0], '/steam-api/storesearch/?term=Dota');
     });

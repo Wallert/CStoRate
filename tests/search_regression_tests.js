@@ -15,7 +15,7 @@ async function runSearchRegressionTests(reporter) {
         const data = await app.fetchSteamJson('https://store.steampowered.com/api/storesearch/?term=Dota&l=english&cc=US');
         assert.equal(data.items[0].id, 570);
         assert.equal(calls.at(-1).timeout, 15000);
-        window.fetch = async () => ({ ok: true, text: async () => 'Title:\n\nMarkdown Content:\n{"items":[{"id":570,"name":"Dota 2"}]}' });
+        window.fetch = async () => new Response('Title:\n\nMarkdown Content:\n{"items":[{"id":570,"name":"Dota 2"}]}');
         // Test the real parser rather than the override above.
         const fresh = createTestEnvironment();
         fresh.window.fetch = window.fetch;
@@ -107,6 +107,53 @@ async function runSearchRegressionTests(reporter) {
         assert(document.querySelector('.search-game-location').textContent.includes('tier S'));
         helpers.click('#search-option-0');
         assert.equal(app.state.pool.length, 0);
+    });
+    await reporter.test('Legacy imported IDs and sizes work without replacing resized cards', () => {
+        const { app, document, helpers } = createTestEnvironment();
+        const board = { title: 'Legacy', tiers: [], pool: [{ id: '000620', name: 'Portal 2', image: '' }] };
+        for (const [oldSize, size] of [['tiny', 'small'], ['xl', 'large'], ['xxl', 'large']]) {
+            app.applyBoard(app.validateAndSanitizeImport({ ...board, cardSize: oldSize }));
+            assert.equal(document.querySelector('#size-toggle-group [aria-pressed="true"]').dataset.size, size);
+        }
+        helpers.typeInput('#board-search', '620');
+        assert.equal(document.querySelectorAll('.board-search-result').length, 1);
+        const card = document.querySelector('.game-card');
+        helpers.click('[data-size="small"]');
+        assert.equal(document.querySelector('.game-card'), card);
+        assert(document.getElementById('unassigned-pool').classList.contains('size-small'));
+    });
+    await reporter.test('Search cache keeps eight valid options and first Arrow Up selects the last', async () => {
+        const { app, document, helpers } = createTestEnvironment();
+        const items = Array.from({ length: 12 }, (_, i) => ({ id: i + 1, name: 'Game ' + i }));
+        app.fetchSteamJson = async () => ({ items: [null, {}, ...items] });
+        helpers.typeInput('#steam-search', 'Game');
+        await wait();
+        assert.equal(app.searchCache.get('game').length, 8);
+        app.dom.steamSearch.dispatchEvent(new document.defaultView.KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+        assert.equal(document.querySelector('[role="option"][aria-selected="true"]').id, 'search-option-7');
+    });
+    await reporter.test('Response budget cancels the stream when the byte limit is crossed', async () => {
+        const { app, window } = createTestEnvironment();
+        let canceled = false;
+        window.fetch = async () => new Response(new ReadableStream({
+            pull(controller) { controller.enqueue(new Uint8Array(1024 * 1024)); },
+            cancel() { canceled = true; }
+        }));
+        await assert.rejects(app.fetchJsonWithTimeout('/fixture'), /too large/i);
+        assert(canceled);
+    });
+    await reporter.test('Separate tabs preserve both saves and legacy deletes survive reopening', () => {
+        const old = { id: 'old', title: 'From 1.0.6', tiers: [], pool: [] };
+        const sharedStorage = { steam_tier_master_library: JSON.stringify([old]) };
+        const a = createTestEnvironment({}, { sharedStorage }).app;
+        const b = createTestEnvironment({}, { sharedStorage }).app;
+        a.state.listTitle = 'Board A';
+        b.state.listTitle = 'Board B';
+        a.saveActiveList();
+        b.saveActiveList();
+        a.deleteSavedList('old');
+        const reopened = createTestEnvironment({}, { sharedStorage }).app;
+        assert.deepEqual(Array.from(reopened.state.savedLists, list => list.title).sort(), ['Board A', 'Board B']);
     });
     await reporter.test('List search renders hostile names as text and caps a broad result set', () => {
         const { app, document, helpers } = createTestEnvironment();

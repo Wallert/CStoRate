@@ -43,7 +43,7 @@ async function runTier3Tests(reporter) {
         reporter.assert(app.state.id === null, "Session lock reset");
         
         // Check saved library item in LocalStorage
-        const savedLists = JSON.parse(helpers.getWindow().localStorage.getItem('steam_tier_master_library'));
+        const savedLists = helpers.storedLists();
         const originalSaved = savedLists.find(l => l.id === originalId);
         reporter.assert(originalSaved !== undefined, "Original saved list still exists in Library");
         reporter.assert(originalSaved.title === "Library Original", "Original saved title untouched");
@@ -101,7 +101,7 @@ async function runTier3Tests(reporter) {
         helpers.typeInput('#list-title', 'Cloned Version Edited');
         helpers.click('#btn-save');
         
-        const library = JSON.parse(helpers.getWindow().localStorage.getItem('steam_tier_master_library'));
+        const library = helpers.storedLists();
         reporter.assert(library.length === 2, "Library has 2 distinct entries");
         reporter.assert(library[0].title === 'Original Version', "First list title is Original Version");
         reporter.assert(library[1].title === 'Cloned Version Edited', "Second list title is Cloned Version Edited");

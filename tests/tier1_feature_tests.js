@@ -322,7 +322,7 @@ async function runTier1Tests(reporter) {
         
         helpers.click('#btn-save');
         
-        const saved = JSON.parse(helpers.getWindow().localStorage.getItem('steam_tier_master_library'));
+        const saved = helpers.storedLists();
         reporter.assert(Array.isArray(saved) && saved.length === 1, "Library should contain 1 saved item");
         reporter.assert(saved[0].title === "My Custom List", "Saved item title should match");
     });
@@ -380,7 +380,7 @@ async function runTier1Tests(reporter) {
         app.deleteSavedList(listId);
         
         reporter.assert(app.state.savedLists.length === 0, "Library should be empty");
-        const stored = JSON.parse(helpers.getWindow().localStorage.getItem('steam_tier_master_library'));
+        const stored = helpers.storedLists();
         reporter.assert(stored.length === 0, "LocalStorage should be empty");
     });
 

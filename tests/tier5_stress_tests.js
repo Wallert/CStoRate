@@ -58,7 +58,7 @@ async function runTier5StressSuite() {
 
         // 3. Save to Library
         helpers.click('#btn-save');
-        const libraryData = JSON.parse(window.localStorage.getItem('steam_tier_master_library') || '[]');
+        const libraryData = helpers.storedLists();
         if (libraryData.length === 0 || libraryData[0].title !== 'Mutated List Title') {
             throw new Error("Step 3 (Save) failed");
         }
@@ -112,7 +112,7 @@ async function runTier5StressSuite() {
 
         // 8. Delete Saved List from Library
         app.deleteSavedList(savedId);
-        const postDeleteLibrary = JSON.parse(window.localStorage.getItem('steam_tier_master_library') || '[]');
+        const postDeleteLibrary = helpers.storedLists();
         if (postDeleteLibrary.some(item => item.id === savedId)) {
             throw new Error("Step 8 (Delete saved list) failed");
         }

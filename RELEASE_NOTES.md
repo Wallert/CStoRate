@@ -1,5 +1,14 @@
 # Release Notes — CantStop to rate (CStoRate)
 
+## v1.0.7 — Library and Steam search fixes
+
+Released November 19, 2026.
+
+- Store each library list independently so simultaneous saves from different tabs preserve both lists. Existing libraries remain readable.
+- Bound streamed Steam responses and cache only eight valid results. Fix first Arrow Up selection and match numeric App IDs with leading zeros.
+- Map legacy card sizes to supported sizes and resize cards without replacing their DOM nodes.
+- Refresh the source-map-js and undici test dependencies.
+
 ## v1.0.6 UI refinements and compact phone settings
 
 Release dated October 5, 2026. Deployment status is available in GitHub Actions and the live site's version footer.

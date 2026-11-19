@@ -20,13 +20,13 @@ const appJsPath = path.join(__dirname, '../app.js');
 const htmlContent = fs.readFileSync(htmlPath, 'utf8');
 const appJsContent = fs.readFileSync(appJsPath, 'utf8');
 
-function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false, matchMedia = null } = {}) {
+function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false, matchMedia = null, sharedStorage = null } = {}) {
     if (!JSDOM) {
         throw new Error("JSDOM module is not installed. Please run: npm install jsdom --save-dev");
     }
 
     // Prepare simulated localStorage
-    const storageStore = { ...initialLocalStorage };
+    const storageStore = sharedStorage ?? { ...initialLocalStorage };
     const mockLocalStorage = {
         getItem: (key) => (key in storageStore ? storageStore[key] : null),
         setItem: (key, val) => { storageStore[key] = String(val); },
@@ -51,6 +51,7 @@ function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false
 
     const { window } = dom;
     const { document } = window;
+    window.TextDecoder = TextDecoder;
     if (matchMedia) window.matchMedia = matchMedia;
     document.elementFromPoint = () => null;
     window.scrollBy = () => {};
@@ -93,7 +94,7 @@ function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false
     };
 
     // Mock fetch API for Steam endpoints
-    window.fetch = async (url, opts) => {
+    const mockSteam = async (url, opts) => {
         window._lastFetchUrl = url;
         const urlStr = String(url);
 
@@ -158,6 +159,8 @@ function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false
             json: async () => ({})
         };
     };
+
+    window.fetch = async (...args) => Response.json(await (await mockSteam(...args)).json());
 
     // Mock FileReader for JSON import tests
     class MockFileReader {
@@ -258,6 +261,10 @@ function createTestEnvironment(initialLocalStorage = {}, { manualConfirm = false
 
             targetEl.dispatchEvent(dropEvent);
         },
+
+        storedLists: () => Object.entries(storageStore)
+            .filter(([key]) => key.startsWith("steam_tier_master_list:"))
+            .map(([, raw]) => JSON.parse(raw)).filter(Boolean),
 
         // File Import simulation
         importJsonFile: (jsonContent) => {

@@ -1,6 +1,6 @@
 # Current CStoRate project state
 
-Date: October 5, 2026. Current release: **1.0.6**, including the approved UI refinements and compact phone settings. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
+Date: November 19, 2026. Current release: **1.0.7**, including per-list library storage, bounded Steam search and legacy board compatibility. Source reviewed from the extracted 1.0.2 archive. Deployment status is available in GitHub Actions; the live footer identifies the served version.
 
 The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md). The application remains a static vanilla HTML/CSS/JS Steam tier-list editor with its existing neon visual design.
 
@@ -24,9 +24,9 @@ The audit and implementation are documented in [AUDIT_REPORT.md](AUDIT_REPORT.md
 - Concurrent PNG export guard, original control-style restoration, bounded canvas scale, Blob downloads and safe filenames.
 - A loopback-only Node dev server with an allowlist of website assets and Steam endpoints; no npx server download or directory listing.
 - Offline JSDOM cleanup and runtime-error detection; stress runner exit status; 29 additional audit regressions and 8 local-server checks.
-- Updated transitive test dependency undici to 7.30.0. npm audit currently reports 0 known vulnerabilities.
+- Updated transitive test dependencies undici to 7.30.2 and source-map-js to 1.2.4. npm audit currently reports 0 known vulnerabilities.
 
-`npm run check` passed: 158 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks at 320, 375 and 1280 px covered disclosure activation, focused-field visibility on resize, list search, duplicate feedback, long-title wrapping, two-column action controls, the 44 px modal close target, mouse dragging, click-based tier selection and pressed states after reload. Touch swipe/hold sequences and storage failures were simulated in the DOM harness. Earlier browser checks covered Steam metadata for Dota 2, keyboard movement and library save/reload. These checks do not establish universal browser support or full WCAG compliance.
+`npm run check` passed: 162 DOM tests, 8 stress tests, 8 HTTP server tests. Browser checks at 320, 375 and 1280 px covered disclosure activation, focused-field visibility on resize, list search, duplicate feedback, long-title wrapping, two-column action controls, the 44 px modal close target, mouse dragging, click-based tier selection and pressed states after reload. Touch swipe/hold sequences and storage failures were simulated in the DOM harness. Earlier browser checks covered Steam metadata for Dota 2, keyboard movement and library save/reload. These checks do not establish universal browser support or full WCAG compliance.
 
 ## Remaining limits
 
