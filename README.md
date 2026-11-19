@@ -25,7 +25,7 @@ Rank your Steam games, save multiple tier lists in your browser, and share a lin
 For the best search experience (and to bypass browser CORS limits on Steam API), run it locally:
 
 1. Clone or download this repository.
-2. Install a supported Node.js version, then run **`start.bat`** (Windows) or start the included local server:
+2. Install Node.js 20.19+ on the 20.x line, 22.12+ on the 22.x line, or 24+. Run **`start.bat`** (Windows) or start the included local server:
    ```bash
    npm run dev
    ```
@@ -45,11 +45,9 @@ Autosave and My Library live in this browser profile and website origin. The sta
 
 Loading JSON, a share link, a saved list, or Reset All preserves one previous board. Use **Restore previous board** to recover it, including after reload. This is one recovery slot, not a full undo history. JSON is the portable backup between localhost, GitHub Pages and other browsers.
 
-Boards support up to **50 tiers / 1000 games**. JSON imports are limited to **5 MiB** and combined image strings to **3 MiB**. Share links are limited to **500000 encoded characters**; use JSON for larger boards. Third-party Steam search providers can be unavailable; the UI reports errors and supports retrying.
+Boards support up to **50 tiers / 1000 games**. JSON imports are limited to **5 MiB** and combined image strings to **3 MiB**. Share links support up to **500,000 encoded characters**. Use JSON for larger boards.
 
 ## Quality checks
-
-Requires Node.js 20.19+ on the 20.x line, 22.12+ on the 22.x line, or 24+. A supported Node.js LTS release is recommended:
 
 ```bash
 npm ci
@@ -58,7 +56,17 @@ npm run check
 
 The check command validates JavaScript syntax and runs offline DOM integration/regression tests, stress tests, and HTTP tests for the local server. Tests close their browser environments and return failing exit codes.
 
-Current version: **1.0.7**. See [the audit and fixes](AUDIT_REPORT.md), [release notes](RELEASE_NOTES.md), and [deployment guide](DEPLOYMENT.md). GitHub Pages deployments can be checked in the repository Actions tab and the live site's version footer.
+## Deployment
+
+In GitHub, open **Settings → Pages**, select **Deploy from a branch**, then choose **main** and **/ (root)**. GitHub Pages serves `index.html`, `style.css` and `app.js` directly. Check the deployment in the repository’s Actions tab and the version in the live site’s footer.
+
+The local Node.js server proxies Steam requests during development. On GitHub Pages, the app uses Jina Reader and falls back to AllOrigins. If a provider is unavailable or rate-limited, use **Retry search**.
+
+On a host with your own Steam proxy, add `<meta name="steam-proxy" content="/steam-api/">` to `index.html`. Serve `/steam-api/storesearch/` and `/steam-api/appdetails/` on the same origin. Restrict upstream requests to Steam and enforce query validation, response size limits and timeouts.
+
+## Releases
+
+Current version **1.0.7**. See [GitHub Releases](https://github.com/Wallert/CStoRate/releases) for tagged versions and [release notes](RELEASE_NOTES.md) for the full history.
 
 ---
 

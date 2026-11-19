@@ -58,7 +58,7 @@ Release dated October 3, 2026. Deployment status is available in GitHub Actions 
 - Close offline test environments and detect DOM errors; propagate stress failures to CI. Added 29 audit regression tests and 8 server tests.
 - Update undici to 7.30.0; current npm audit reports 0 known vulnerabilities.
 
-Verified: 139 DOM integration/regression + 8 stress + 8 server tests. Browser checks include Steam metadata, keyboard movement, save/reload and phone-width layout. PNG generation reports success; downloaded-image pixel verification and physical iOS/Safari tests remain pending. See [AUDIT_REPORT.md](AUDIT_REPORT.md).
+Verified: 139 DOM integration/regression + 8 stress + 8 server tests. Browser checks include Steam metadata, keyboard movement, save/reload and phone-width layout. PNG generation reports success; downloaded-image pixel verification and physical iOS/Safari tests remain pending.
 
 Earlier entries below describe historical versions; they are not the current verification report.
 
