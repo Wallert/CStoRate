@@ -21,7 +21,7 @@
     "allorigins",
     "html2canvas"
   ],
-  "author": "Steam Tier Master Team",
+  "author": "Vitalii",
   "license": "MIT",
   "devDependencies": {
     "jsdom": "^29.1.1"

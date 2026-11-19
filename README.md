@@ -1,12 +1,10 @@
-# CStoRate — Steam Gaming Tier List Maker 🎮
+# CStoRate — Steam game tier list maker
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-Try_it_Now-ff79c6?style=for-the-badge)](https://wallert.github.io/CStoRate/)
+Rank your Steam games, save multiple tier lists in your browser, and share a link or export your board as a PNG.
 
-> **🌐 Live Web Application:** [https://wallert.github.io/CStoRate/](https://wallert.github.io/CStoRate/)
+**[Open tier list maker](https://wallert.github.io/CStoRate/)**
 
-A simple, fast, and customizable web tool for creating Steam game tier lists. 
-
-Easily search for games on Steam, paste store links or App IDs, drag and drop games to rank them, and export your tier list as a PNG image or JSON file.
+![A completed board with Portal 2, Elden Ring and Baldur’s Gate 3 in tier S and five more games ranked in tiers A and B.](docs/tier-list-preview.png)
 
 ---
 
