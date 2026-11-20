@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a problem with CStoRate.
+labels:
+  - bug
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe what you saw and what you expected to happen.
+      placeholder: Export PNG showed a success message, but no file appeared in Downloads.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the actions that lead to the problem. Include the search term or Steam App ID if relevant.
+      placeholder: |
+        1. Add Portal 2 to the board.
+        2. Move it to tier S.
+        3. Open Actions and select Export PNG.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser and device
+      description: Include your browser and device or operating system. Mention if you are running the app locally.
+      placeholder: Safari on iPhone, using the GitHub Pages site
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: CStoRate version
+      description: If available, copy the version shown in the site footer.
+      placeholder: v1.0.7
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Screenshots or extra details
+      description: Attach a screenshot if it helps. Reports are public, so leave out personal information.
